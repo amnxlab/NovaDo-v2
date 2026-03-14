@@ -67,7 +67,7 @@ const AICoach = () => {
 
   return (
     <>
-    <div className="fixed bottom-16 right-4 z-50 w-72">
+    <div className="fixed bottom-52 right-4 z-50 w-72">
       <div className="flex gap-2 flex-wrap">
         <button
           onClick={handleSuggest}

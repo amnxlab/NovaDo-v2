@@ -62,7 +62,7 @@ const DistractionLog = () => {
         whileHover={{ scale: 1.1 }}
         whileTap={{ scale: 0.95 }}
         title="Distraction Log (d)"
-        className="fixed bottom-4 right-4 z-50 w-12 h-12 rounded-full bg-rose-600 hover:bg-rose-500 text-white shadow-lg flex items-center justify-center text-xl transition-colors"
+        className="fixed bottom-20 right-4 z-50 w-12 h-12 rounded-full bg-rose-600 hover:bg-rose-500 text-white shadow-lg flex items-center justify-center text-xl transition-colors"
       >
         🚨
       </motion.button>
@@ -75,7 +75,7 @@ const DistractionLog = () => {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-            className="fixed bottom-20 right-4 z-50 w-80 max-h-[32rem] bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+            className="fixed bottom-36 right-4 z-50 w-80 max-h-[32rem] bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
           >
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">

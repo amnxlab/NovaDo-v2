@@ -50,7 +50,7 @@ const ParkingLot = () => {
         whileHover={{ scale: 1.1 }}
         whileTap={{ scale: 0.95 }}
         title="Quick Capture (i)"
-        className="fixed bottom-20 right-4 z-50 w-12 h-12 rounded-full bg-amber-600 hover:bg-amber-500 text-white shadow-lg flex items-center justify-center text-xl transition-colors"
+        className="fixed bottom-36 right-4 z-50 w-12 h-12 rounded-full bg-amber-600 hover:bg-amber-500 text-white shadow-lg flex items-center justify-center text-xl transition-colors"
       >
         💡
       </motion.button>
@@ -63,7 +63,7 @@ const ParkingLot = () => {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-            className="fixed bottom-36 right-4 z-50 w-80 max-h-[28rem] bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+            className="fixed bottom-52 right-4 z-50 w-80 max-h-[28rem] bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
           >
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
