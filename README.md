@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="pics/Logo.png" alt="NovaDo Logo" width="300"/>
+  <img src="pics/Logo.png" alt="NovaDo Logo" width="500"/>
 </p>
 
 <h1 align="center">NovaDo v2</h1>
