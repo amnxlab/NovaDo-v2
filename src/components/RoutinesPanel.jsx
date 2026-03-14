@@ -92,6 +92,7 @@ function AddRoutineForm({ onDone }) {
   const [emoji, setEmoji] = useState('📋')
   const [label, setLabel] = useState('Anytime')
   const [steps, setSteps] = useState([{ text: '', durationMins: 5 }])
+  const [repeatPattern, setRepeatPattern] = useState('daily')
 
   const updateStep = (i, field, val) =>
     setSteps((s) => s.map((st, idx) => (idx === i ? { ...st, [field]: val } : st)))
@@ -102,7 +103,7 @@ function AddRoutineForm({ onDone }) {
       .filter((s) => s.text.trim())
       .map((s) => ({ text: s.text.trim(), durationMins: Number(s.durationMins) || 5, xp: 10 }))
     if (validSteps.length === 0) return
-    addCustomRoutine(name.trim(), emoji, label, validSteps)
+    addCustomRoutine(name.trim(), emoji, label, validSteps, repeatPattern)
     onDone()
   }
 
@@ -131,6 +132,21 @@ function AddRoutineForm({ onDone }) {
           <option key={l}>{l}</option>
         ))}
       </select>
+
+      <div className="mb-3">
+        <label className="block text-xs text-gray-400 mb-1.5 font-medium uppercase tracking-wide">
+          Repeat Pattern
+        </label>
+        <select
+          value={repeatPattern} onChange={(e) => setRepeatPattern(e.target.value)}
+          className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 border border-gray-600 focus:outline-none focus:border-blue-500"
+        >
+          <option value="daily">Every day</option>
+          <option value="every2">Every 2 days</option>
+          <option value="every3">Every 3 days</option>
+          <option value="every7">Every week (7 days)</option>
+        </select>
+      </div>
 
       <div className="space-y-2 mb-3">
         {steps.map((step, i) => (

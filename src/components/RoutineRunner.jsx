@@ -112,6 +112,11 @@ export default function RoutineRunner({ routine, onClose }) {
             <div className="text-gray-500 text-sm">
               Step {stepIndex + 1} of {routine.steps.length}
             </div>
+            {routine.repeatPattern !== 'daily' && (
+              <div className="text-xs text-gray-600 mt-0.5">
+                Repeat: {routine.repeatPattern === 'every2' ? 'Every 2 days' : routine.repeatPattern === 'every3' ? 'Every 3 days' : 'Every week'}
+              </div>
+            )}
           </div>
         </div>
         <button onClick={onClose} className="text-gray-600 hover:text-gray-300 text-xl w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-800 transition-colors">

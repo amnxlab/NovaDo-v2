@@ -70,13 +70,16 @@ function debouncedSave(name, value) {
 
   const timer = setTimeout(() => {
     pendingWrites.delete(name)
-    fetch(`${API_BASE}/${encodeURIComponent(name)}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', ...authHeaders() },
-      body: value, // Already JSON-stringified by Zustand
-    }).catch(() => {
-      // Server down — data is still in localStorage
-    })
+    const token = getAuthToken()
+    if (token) {
+      fetch(`${API_BASE}/${encodeURIComponent(name)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: value, // Already JSON-stringified by Zustand
+      }).catch(() => {
+        // Server down — data is still in localStorage
+      })
+    }
   }, 500)
 
   pendingWrites.set(name, timer)

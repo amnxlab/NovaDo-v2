@@ -8,6 +8,16 @@ set -e
 
 cd "$(dirname "$0")"
 
+# Kill any stale processes on ports 3000 and 3001
+for PORT in 3000 3001; do
+  PID=$(lsof -ti tcp:$PORT 2>/dev/null || true)
+  if [ -n "$PID" ]; then
+    echo "🔪 Killing stale process on port $PORT (PID $PID)..."
+    kill -9 $PID 2>/dev/null || true
+    sleep 0.3
+  fi
+done
+
 # Install dependencies if node_modules is missing
 if [ ! -d "node_modules" ]; then
   echo "📦 Installing dependencies..."

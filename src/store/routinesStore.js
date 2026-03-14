@@ -51,11 +51,12 @@ export const ROUTINE_PRESETS = {
   },
 }
 
-const makeRoutine = ({ name, emoji, scheduledLabel, steps }) => ({
+const makeRoutine = ({ name, emoji, scheduledLabel, steps, repeatPattern = 'daily' }) => ({
   id: nanoid(), name, emoji, scheduledLabel,
   steps: steps.map((s) => ({ ...s, id: nanoid() })),
   streak: 0, longestStreak: 0, lastCompletedDate: null,
   createdAt: new Date().toISOString(),
+  repeatPattern, // 'daily', 'every2', 'every3', 'every7'
 })
 
 const useRoutinesStore = create(
@@ -69,8 +70,8 @@ const useRoutinesStore = create(
         set((s) => ({ routines: [...s.routines, makeRoutine(preset)] }))
       },
 
-      addCustomRoutine: (name, emoji = '📋', scheduledLabel = 'Anytime', steps = []) => {
-        const r = makeRoutine({ name, emoji, scheduledLabel, steps })
+      addCustomRoutine: (name, emoji = '📋', scheduledLabel = 'Anytime', steps = [], repeatPattern = 'daily') => {
+        const r = makeRoutine({ name, emoji, scheduledLabel, steps, repeatPattern })
         set((s) => ({ routines: [...s.routines, r] }))
         return r.id
       },
@@ -117,6 +118,22 @@ const useRoutinesStore = create(
 
       isDoneToday: (id) =>
         get().routines.find((r) => r.id === id)?.lastCompletedDate === today(),
+
+      // Helper: check if a routine is scheduled for today based on its repeat pattern
+      isScheduledToday: (id) => {
+        const r = get().routines.find((r) => r.id === id)
+        if (!r) return false
+        const td = today()
+        if (!r.lastCompletedDate) return true // never done — show today
+        const daysSince = (new Date(td) - new Date(r.lastCompletedDate)) / 86400000
+        switch (r.repeatPattern) {
+          case 'daily': return daysSince >= 1
+          case 'every2': return daysSince >= 2
+          case 'every3': return daysSince >= 3
+          case 'every7': return daysSince >= 7
+          default: return daysSince >= 1
+        }
+      },
     }),
     { name: 'routines-storage', storage: createFileStorage() }
   )

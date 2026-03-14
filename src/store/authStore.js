@@ -41,4 +41,9 @@ export function getAuthToken() {
   }
 }
 
+// Alternative: get token from the store itself (works in browser)
+export function getTokenFromStore() {
+  return useAuthStore.getState().token
+}
+
 export default useAuthStore
