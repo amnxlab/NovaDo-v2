@@ -13,10 +13,10 @@ const isSameDay = (iso) => {
 const AnalyticsDashboard = () => {
   const { focusSessions, dailyStats } = useAnalyticsStore()
   const { points, level, streakDays, todayCount, focusStreak, achievements } = useXPStore()
-  const { analyticsVisible, gamificationEnabled } = useSettingsStore()
+  const { gamificationEnabled } = useSettingsStore()
   const { tasks } = useTasksStore()
 
-  if (!analyticsVisible || !gamificationEnabled) return null
+  if (!gamificationEnabled) return null
 
   const totalFocusTime = focusSessions.reduce((sum, s) => sum + s.duration, 0)
   const totalTasksCompleted = tasks.filter((t) => t.completedAt).length

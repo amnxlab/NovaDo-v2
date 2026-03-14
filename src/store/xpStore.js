@@ -278,8 +278,25 @@ const useXPStore = create(
       },
 
       resetFocusStreak: () => set({ focusStreak: 0, focusStreakStart: null }),
+
+      // Remove XP when a completed task is marked incomplete
+      deductXP: (amount) => {
+        if (!amount || amount <= 0) return
+        const { points } = get()
+        const newPoints = Math.max(0, points - amount)
+        set({ points: newPoints, level: Math.floor(newPoints / 100) + 1 })
+      },
     }),
-    { name: 'xp-storage', storage: createFileStorage() }
+    {
+      name: 'xp-storage',
+      storage: createFileStorage(),
+      // Do NOT persist ephemeral display fields — prevents replay on reload
+      partialize: (state) => {
+        // eslint-disable-next-line no-unused-vars
+        const { recentXPGain, lastUnlockedAchievement, ...rest } = state
+        return rest
+      },
+    }
   )
 )
 

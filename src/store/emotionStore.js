@@ -9,6 +9,9 @@ const useEmotionStore = create(
       emotions: [], // { taskId, emotion, energy, timestamp }
       currentMood: null,
       currentEnergy: 5,
+      // Persistent checkpoint — prevents check-in from replaying on reload
+      checkpointCount: 0,
+      checkpointDate: null,
       addEmotion: (taskId, emotion, energy) => {
         set((state) => ({
           emotions: [...state.emotions, { taskId, emotion, energy, timestamp: new Date().toISOString() }],
@@ -19,6 +22,7 @@ const useEmotionStore = create(
       clearEmotion: () => {
         set({ currentMood: null, currentEnergy: 5 })
       },
+      setCheckpoint: (count, dateStr) => set({ checkpointCount: count, checkpointDate: dateStr }),
     }),
     { name: 'emotion-storage', storage: createFileStorage() }
   )

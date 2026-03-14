@@ -31,8 +31,8 @@ function formatDueDate(iso) {
 }
 
 const TaskCard = ({ task, onRun, onFocus, dailyWins }) => {
-  const { completeTask, deleteTask, addSubtask, completeSubtask, updateTask, lockedTaskId, lockIn, lockOut } = useTasksStore()
-  const { awardXP, unlockAchievement, todayCount, focusStreak, streakDays } = useXPStore()
+  const { completeTask, deleteTask, addSubtask, completeSubtask, updateTask, lockedTaskId, lockIn, lockOut, uncompleteTask } = useTasksStore()
+  const { awardXP, unlockAchievement, todayCount, focusStreak, streakDays, deductXP } = useXPStore()
   const { soundEnabled, confettiEnabled } = useSettingsStore()
   const { tags: TAG_DEFINITIONS } = useTagsStore()
   const { addFocusSession, addDailyStat } = useAnalyticsStore()
@@ -59,6 +59,8 @@ const TaskCard = ({ task, onRun, onFocus, dailyWins }) => {
     const earlyBonus = task.dueDate ? !isPastDue(task.dueDate) : false
     const xp = calcTaskXP({ priority: task.priority, earlyBonus, subtaskCount: completedSubtaskCount })
     awardXP(xp, task.id)
+    // Persist XP amount on the task so it can be reversed on uncomplete
+    updateTask(task.id, { _xpGranted: xp })
     addDailyStat(1, 0, 0)
 
     // ── Achievement checks ─────────────────────────────────────────────────
@@ -160,11 +162,50 @@ const TaskCard = ({ task, onRun, onFocus, dailyWins }) => {
     updateTask(task.id, { priority: newPriority })
   }
 
-  const borderClass = isOverdue && !task.completedAt
+  const borderClass = isOverdue
     ? 'border-l-4 border-red-500 animate-pulse'
-    : task.dueDate && !task.completedAt
+    : task.dueDate
     ? `border-l-4 ${prioMeta.border}`
     : ''
+
+  // ── Compact "past station" view for completed tasks ───────────────────────
+  if (task.completedAt) {
+    return (
+      <motion.div
+        layout
+        initial={{ opacity: 0, height: 0 }}
+        animate={{ opacity: 1, height: 'auto' }}
+        exit={{ opacity: 0, height: 0 }}
+        transition={{ duration: 0.22 }}
+        className="group flex items-center gap-2 px-3 py-1.5 mb-1 rounded-lg bg-gray-800/30 hover:bg-gray-800/50 overflow-hidden"
+        role="article"
+        aria-label={`Completed: ${task.text}`}
+      >
+        {/* Green checkmark dot */}
+        <div className="flex-shrink-0 w-4 h-4 rounded-full bg-emerald-500 flex items-center justify-center shadow-[0_0_6px_rgba(34,197,94,0.4)]">
+          <span className="text-[9px] text-white font-bold leading-none">✓</span>
+        </div>
+        {/* Task text */}
+        <p className="flex-1 min-w-0 text-xs text-gray-500 line-through truncate">{task.text}</p>
+        {/* Time spent */}
+        {(task.timeSpent || 0) > 0 && (
+          <span className="flex-shrink-0 text-[10px] text-gray-600 font-mono">{formatTime(task.timeSpent)}</span>
+        )}
+        {/* Undo button — revealed on hover */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            uncompleteTask(task.id)
+            if (task._xpGranted > 0) deductXP(task._xpGranted)
+          }}
+          title="Mark as incomplete"
+          className="flex-shrink-0 text-[10px] text-gray-600 hover:text-orange-400 opacity-0 group-hover:opacity-100 transition-all px-1.5 py-0.5 rounded hover:bg-orange-400/10"
+        >
+          ↩
+        </button>
+      </motion.div>
+    )
+  }
 
   return (
     <motion.div
@@ -174,26 +215,21 @@ const TaskCard = ({ task, onRun, onFocus, dailyWins }) => {
       transition={{ duration: 0.2 }}
       layout
       role="article"
-      aria-label={task.completedAt ? `Completed: ${task.text}` : task.text}
-      className={`p-4 mb-3 rounded-lg ${task.completedAt ? 'bg-green-900/30 opacity-60' : 'bg-gray-800'} ${borderClass}`}
+      aria-label={task.text}
+      className={`p-4 mb-3 rounded-lg bg-gray-800 ${borderClass}`}
     >
       {/* Header row */}
       <div className="flex items-start gap-3">
         {/* Completion checkbox */}
         <button
           onClick={handleComplete}
-          disabled={!!task.completedAt}
-          aria-label={task.completedAt ? 'Task completed' : 'Mark as complete'}
-          className={`mt-0.5 w-5 h-5 rounded-full border-2 flex-shrink-0 transition-all ${
-            task.completedAt ? 'bg-green-500 border-green-500' : 'border-gray-500 hover:border-blue-400'
-          }`}
-        >
-          {task.completedAt && <span className="text-xs text-white flex items-center justify-center w-full h-full">✓</span>}
-        </button>
+          aria-label="Mark as complete"
+          className="mt-0.5 w-5 h-5 rounded-full border-2 flex-shrink-0 transition-all border-gray-500 hover:border-blue-400"
+        />
 
         {/* Task text */}
         <div className="flex-1 min-w-0">
-          <p className={`text-white font-medium break-words ${task.completedAt ? 'line-through text-gray-400' : ''}`}>
+          <p className="text-white font-medium break-words">
             {task.text}
           </p>
 
@@ -212,7 +248,7 @@ const TaskCard = ({ task, onRun, onFocus, dailyWins }) => {
             })}
 
             {/* Daily Win badge */}
-            {dailyWins?.taskIds?.includes(task.id) && !task.completedAt && (
+            {dailyWins?.taskIds?.includes(task.id) && (
               <span className="text-xs px-1.5 py-0.5 rounded-full bg-yellow-800/60 text-yellow-300 font-semibold">
                 🏆 Win
               </span>
@@ -235,14 +271,9 @@ const TaskCard = ({ task, onRun, onFocus, dailyWins }) => {
               </button>
             )}
 
-            {!task.completedAt && totalSeconds > 0 && (
+            {totalSeconds > 0 && (
               <span className="text-xs px-1.5 py-0.5 rounded-full font-mono bg-gray-700 text-gray-400">
                 ⏱ {formatTime(totalSeconds)}
-              </span>
-            )}
-            {task.completedAt && (task.timeSpent || 0) > 0 && (
-              <span className="text-xs px-1.5 py-0.5 rounded-full bg-gray-700/60 text-gray-500 font-mono">
-                ⏱ {formatTime(task.timeSpent)}
               </span>
             )}
           </div>

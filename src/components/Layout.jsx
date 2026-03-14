@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import NotificationCenter from './NotificationCenter'
@@ -20,6 +20,7 @@ import useTimerStore from '../store/timerStore'
 import useCustomizationStore from '../store/customizationStore'
 import useAuthStore from '../store/authStore'
 import useTasksStore from '../store/tasksStore'
+import useEmotionStore from '../store/emotionStore'
 
 const NAV_ITEMS = [
   { to: '/',             icon: '📋', label: 'Tasks'        },
@@ -36,7 +37,7 @@ export default function Layout() {
   const { todayCount } = useXPStore()
   const { user, clearAuth } = useAuthStore()
   const { colorScheme, fontSize, animationIntensity, backgroundPattern, highContrast } = useCustomizationStore()
-  const { dailyWins, setDailyWins } = useTasksStore()
+  const { dailyWins, setDailyWins, _hasHydrated: tasksHydrated } = useTasksStore()
 
   // Sidebar collapsed state
   const [collapsed, setCollapsed] = useState(false)
@@ -53,16 +54,23 @@ export default function Layout() {
   // Parking Lot state
   const [parkingLotOpen, setParkingLotOpen] = useState(false)
 
+  // Distraction Log state (controlled by unified FAB dock)
+  const [distractionOpen, setDistractionOpen] = useState(false)
+
+  // AICoach action registry — populated by AICoach component on mount/update
+  const aiCoachActionsRef = useRef({ suggest: null, autopilot: null })
+
   // Emotion tracker
   const [showEmotionTracker, setShowEmotionTracker] = useState(false)
-  const [emotionCheckpoint, setEmotionCheckpoint] = useState(0)
+  const { checkpointCount, checkpointDate, setCheckpoint } = useEmotionStore()
 
   // Daily Wins gate — show if not set today
   const todayStr = (() => {
     const d = new Date()
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
   })()
-  const showDailyWins = !dailyWins || dailyWins.date !== todayStr
+  // Gate on hydration so the modal never shows while persisted state is still loading
+  const showDailyWins = tasksHydrated && (!dailyWins || dailyWins.date !== todayStr)
 
   // Clear stale persisted notifications
   useEffect(() => { localStorage.removeItem('notification-storage') }, [])
@@ -77,13 +85,16 @@ export default function Layout() {
     root.setAttribute('data-high-contrast', String(highContrast))
   }, [colorScheme, fontSize, animationIntensity, backgroundPattern, highContrast])
 
-  // Emotion check every 3 completions
+  // Emotion check every 3 completions — checkpoint persisted to prevent replay on reload
   useEffect(() => {
-    if (todayCount > 0 && todayCount % 3 === 0 && todayCount !== emotionCheckpoint) {
-      setEmotionCheckpoint(todayCount)
-      setShowEmotionTracker(true)
+    if (todayCount > 0 && todayCount % 3 === 0) {
+      const alreadyShown = checkpointDate === todayStr && checkpointCount >= todayCount
+      if (!alreadyShown) {
+        setCheckpoint(todayCount, todayStr)
+        setShowEmotionTracker(true)
+      }
     }
-  }, [todayCount, emotionCheckpoint])
+  }, [todayCount, checkpointCount, checkpointDate, todayStr, setCheckpoint])
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -165,7 +176,11 @@ export default function Layout() {
         >
           {/* Logo area */}
           <div className="p-4 flex items-center gap-3 border-b border-gray-800">
-            <span className="text-xl">⚡</span>
+            <img
+              src="/favicon.svg"
+              alt="NovaDo"
+              className="w-7 h-7 shrink-0 drop-shadow-[0_0_8px_rgba(134,59,255,0.6)]"
+            />
             {!collapsed && (
               <div className="min-w-0">
                 <h1 className="text-lg font-bold bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400 bg-clip-text text-transparent leading-tight">
@@ -274,21 +289,65 @@ export default function Layout() {
       {/* Persistent overlays */}
       <XPBar />
       <PomodoroTimer />
-      <AICoach />
+      <AICoach onRegisterActions={(actions) => { aiCoachActionsRef.current = actions }} />
       <NotificationCenter />
       <ParkingLot open={parkingLotOpen} onClose={() => setParkingLotOpen(false)} />
-      <DistractionLog />
+      <DistractionLog isOpen={distractionOpen} onToggle={setDistractionOpen} />
 
-      {/* Parking Lot floating trigger */}
-      <motion.button
-        onClick={() => setParkingLotOpen((v) => !v)}
-        whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.95 }}
-        title="Quick Capture (i)"
-        className="fixed bottom-36 right-4 z-50 w-12 h-12 rounded-full bg-amber-600 hover:bg-amber-500 text-white shadow-lg flex items-center justify-center text-xl transition-colors relative"
-      >
-        💡
-      </motion.button>
+      {/* ── Unified FAB Dock (right side) ─────────────────────────────────── */}
+      <div className="fixed right-4 bottom-20 z-50 flex flex-col-reverse gap-3 items-center">
+        {/* 🚨 Distraction Log */}
+        <motion.button
+          onClick={() => setDistractionOpen((v) => !v)}
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.95 }}
+          title="Distraction Log (d)"
+          className={`w-12 h-12 rounded-full shadow-lg flex items-center justify-center text-xl transition-colors ${
+            distractionOpen
+              ? 'bg-rose-500 ring-2 ring-rose-300/40'
+              : 'bg-rose-600 hover:bg-rose-500'
+          } text-white`}
+        >
+          🚨
+        </motion.button>
+
+        {/* 💡 Parking Lot */}
+        <motion.button
+          onClick={() => setParkingLotOpen((v) => !v)}
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.95 }}
+          title="Quick Capture (i)"
+          className={`w-12 h-12 rounded-full shadow-lg flex items-center justify-center text-xl transition-colors ${
+            parkingLotOpen
+              ? 'bg-amber-500 ring-2 ring-amber-300/40'
+              : 'bg-amber-600 hover:bg-amber-500'
+          } text-white`}
+        >
+          💡
+        </motion.button>
+
+        {/* 🤖 AI Coach */}
+        <motion.button
+          onClick={() => aiCoachActionsRef.current.suggest?.()}
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.95 }}
+          title="AI Coach — get a suggestion"
+          className="w-12 h-12 rounded-full bg-blue-600 hover:bg-blue-500 text-white shadow-lg flex items-center justify-center text-xl transition-colors"
+        >
+          🤖
+        </motion.button>
+
+        {/* 🧭 Autopilot */}
+        <motion.button
+          onClick={() => aiCoachActionsRef.current.autopilot?.()}
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.95 }}
+          title="ADHD Autopilot — pick best next task"
+          className="w-12 h-12 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg flex items-center justify-center text-xl transition-colors"
+        >
+          🧭
+        </motion.button>
+      </div>
     </>
   )
 }

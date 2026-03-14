@@ -61,7 +61,9 @@ export default function AuthPage() {
       >
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="text-5xl mb-3">⚡</div>
+          <div className="flex justify-center mb-3">
+            <img src="/favicon.svg" alt="NovaDo" className="w-14 h-14 drop-shadow-[0_0_18px_rgba(134,59,255,0.7)]" />
+          </div>
           <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400 bg-clip-text text-transparent">
             NovaDo
           </h1>

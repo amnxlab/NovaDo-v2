@@ -12,7 +12,6 @@ const useSettingsStore = create(
       timerVisible: false,
       doNotDisturb: false,       // mute all notifications except deadline alerts
       autopilotEnabled: false,   // ADHD Autopilot mode
-      analyticsVisible: false,   // show analytics dashboard
       timelineDockVisible: true, // show timeline dock when tasks have due dates
       activeView: 'list',        // 'list' | 'planner' | 'focus'
       toggleSound: () => set((s) => ({ soundEnabled: !s.soundEnabled })),
@@ -21,7 +20,6 @@ const useSettingsStore = create(
       toggleTimer: () => set((s) => ({ timerVisible: !s.timerVisible })),
       toggleDoNotDisturb: () => set((s) => ({ doNotDisturb: !s.doNotDisturb })),
       toggleAutopilot: () => set((s) => ({ autopilotEnabled: !s.autopilotEnabled })),
-      toggleAnalytics: () => set((s) => ({ analyticsVisible: !s.analyticsVisible })),
       toggleTimelineDock: () => set((s) => ({ timelineDockVisible: !s.timelineDockVisible })),
       setActiveView: (view) => set({ activeView: view }),
     }),

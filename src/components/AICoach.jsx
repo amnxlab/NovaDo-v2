@@ -1,5 +1,4 @@
-import { useEffect } from 'react'
-import { motion } from 'framer-motion'
+import { useEffect, useRef } from 'react'
 import useAICoachStore, { generateSuggestion, selectNextTask } from '../store/aiCoachStore'
 import useTasksStore from '../store/tasksStore'
 import useXPStore from '../store/xpStore'
@@ -8,8 +7,13 @@ import useRoadmapsStore from '../store/roadmapsStore'
 import useRoutinesStore from '../store/routinesStore'
 import useNotificationStore from '../store/notificationStore'
 
-const AICoach = () => {
-  const { suggestions, addSuggestion, setAutopilot, dismissLatest } = useAICoachStore()
+/**
+ * AICoach — headless logic component.
+ * Buttons are rendered by the unified FAB dock in Layout.jsx.
+ * Exposes `onSuggest` / `onAutopilot` callbacks via props so Layout can wire them up.
+ */
+const AICoach = ({ onRegisterActions }) => {
+  const { suggestions, addSuggestion, setAutopilot } = useAICoachStore()
   const { tasks } = useTasksStore()
   const { focusStreak, taskChains } = useXPStore()
   const { currentMood, currentEnergy } = useEmotionStore()
@@ -19,10 +23,16 @@ const AICoach = () => {
 
   const context = { focusStreak, taskChains, currentMood, currentEnergy, roadmaps, routines }
 
-  // Route new suggestions to the notification center as top-right toasts
+  // Route new suggestions to the notification center as top-right toasts.
+  // sessionStorage tracks the last suggestion text that was already shown so
+  // Zustand rehydration on reload never re-fires a stale notification.
   const latestSuggestion = suggestions[suggestions.length - 1]
+  const lastNotifiedRef = useRef(sessionStorage.getItem('lastCoachNotif') ?? null)
   useEffect(() => {
     if (!latestSuggestion) return
+    if (latestSuggestion.suggestion === lastNotifiedRef.current) return
+    lastNotifiedRef.current = latestSuggestion.suggestion
+    sessionStorage.setItem('lastCoachNotif', latestSuggestion.suggestion)
     addNotification(latestSuggestion.suggestion, 'info', 8000)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [latestSuggestion?.suggestion])
@@ -58,31 +68,13 @@ const AICoach = () => {
     setAutopilot(true, next.id)
   }
 
-  return (
-    <>
-      {/* 🤖 Coach circular button */}
-      <motion.button
-        onClick={handleSuggest}
-        whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.95 }}
-        title="AI Coach — get a suggestion"
-        className="fixed bottom-[14.5rem] right-4 z-50 w-12 h-12 rounded-full bg-blue-600 hover:bg-blue-500 text-white shadow-lg flex items-center justify-center text-xl transition-colors"
-      >
-        🤖
-      </motion.button>
+  // Register action handlers with Layout's FAB dock
+  useEffect(() => {
+    onRegisterActions?.({ suggest: handleSuggest, autopilot: handleAutopilot })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tasks, focusStreak, taskChains, currentMood, currentEnergy, roadmaps, routines])
 
-      {/* 🧭 Autopilot circular button */}
-      <motion.button
-        onClick={handleAutopilot}
-        whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.95 }}
-        title="ADHD Autopilot — pick best next task"
-        className="fixed bottom-[19rem] right-4 z-50 w-12 h-12 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg flex items-center justify-center text-xl transition-colors"
-      >
-        🧭
-      </motion.button>
-    </>
-  )
+  return null
 }
 
 export default AICoach

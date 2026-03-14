@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import useRoadmapsStore from '../store/roadmapsStore'
+import useRoadmapsStore, { allocatedMins } from '../store/roadmapsStore'
 import useTasksStore from '../store/tasksStore'
 
 /**
@@ -33,13 +33,17 @@ export default function useRoadmapTaskInjector() {
 
           if (existingTask) continue // already has an active task
 
-          // Create the task — inherit priority from roadmap
+          // Create the task — store the allocated study time (not raw video minutes)
+          // so TaskRunner uses the same duration the roadmap displays.
           const taskId = addTask(
             `📚 ${module.title} — ${course.name}`,
             {
               priority: roadmap.priority || 'medium',
               dueDate: today,
               tags: ['roadmap', roadmap.name],
+              durationMins: module.durationMins
+                ? allocatedMins(module, course, roadmap)
+                : null,
             }
           )
 

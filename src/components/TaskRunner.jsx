@@ -41,8 +41,8 @@ export default function TaskRunner({ task, onClose }) {
   const subtasks = task.subtasks ?? []
   const completedSubtaskCount = subtasks.filter((s) => s.completedAt).length
 
-  // Compute seconds for current mode
-  const baseMins = BASE_MINS[task.priority] ?? 20
+  // Use explicit durationMins from roadmap modules when set, otherwise fall back to priority defaults
+  const baseMins = task.durationMins ?? (BASE_MINS[task.priority] ?? 20)
   const allocatedMins = Math.round(baseMins * FOCUS_MODES[mode].timeMult)
   const totalSeconds = allocatedMins * 60
   const [secondsLeft, setSecondsLeft] = useState(totalSeconds)

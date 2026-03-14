@@ -18,19 +18,21 @@ export const DEADLINE_TYPES = {
 }
 
 // Build a new task object with full schema
-const makeTask = (text, { priority = 'medium', dueDate = null, deadlineType = 'soft', tags = [], subtasks = [] } = {}) => ({
+const makeTask = (text, { priority = 'medium', dueDate = null, deadlineType = 'soft', tags = [], subtasks = [], durationMins = null } = {}) => ({
   id: nanoid(),
   text,
   priority,
-  dueDate,           // ISO string or null
-  deadlineType,      // 'soft' | 'hard'
-  tags,              // string[]
-  subtasks,          // { id, text, completedAt }[]
+  dueDate,
+  deadlineType,
+  tags,
+  subtasks,
+  durationMins,
   createdAt: new Date().toISOString(),
   completedAt: null,
   earlyBonus: false,
-  startedAt: null,   // ISO string — when user first locked in
-  timeSpent: 0,      // total seconds accumulated across all sessions
+  startedAt: null,
+  timeSpent: 0,
+  _xpGranted: 0,   // XP awarded when completed — used for reversal on uncomplete
 })
 
 const useTasksStore = create(
@@ -40,6 +42,8 @@ const useTasksStore = create(
       // Daily wins: { date: 'YYYY-MM-DD', taskIds: string[] }
       dailyWins: null,
       // Runtime-only (excluded from persistence via partialize)
+      _hasHydrated: false,
+      setHasHydrated: (value) => set({ _hasHydrated: value }),
       lockedTaskId: null,
       sessionStart: null,
 
@@ -67,6 +71,14 @@ const useTasksStore = create(
           )
           return { tasks: updatedTasks }
         })
+      },
+
+      uncompleteTask: (id) => {
+        set((state) => ({
+          tasks: state.tasks.map((t) =>
+            t.id === id ? { ...t, completedAt: null, earlyBonus: false } : t
+          ),
+        }))
       },
 
       deleteTask: (id) => {
@@ -154,6 +166,7 @@ const useTasksStore = create(
       storage: createFileStorage(),
       // Exclude runtime-only fields from persistence
       partialize: (state) => ({ tasks: state.tasks, quests: state.quests, dailyWins: state.dailyWins }),
+      onRehydrateStorage: () => (state) => { state?.setHasHydrated(true) },
     }
   )
 )

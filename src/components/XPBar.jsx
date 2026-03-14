@@ -11,7 +11,9 @@ const XPBar = () => {
   const [showXPPop, setShowXPPop] = useState(false)
   const [lastXP, setLastXP] = useState(0)
   const [showAchToast, setShowAchToast] = useState(false)
-  const [toastKey, setToastKey] = useState(null)
+  // Initialise from sessionStorage so the persisted xpStore value never
+  // triggers the toast again on reload within the same browser session.
+  const [toastKey, setToastKey] = useState(() => sessionStorage.getItem('lastShownAch') ?? null)
 
   useEffect(() => {
     if (recentXPGain && recentXPGain !== lastXP) {
@@ -25,6 +27,7 @@ const XPBar = () => {
   useEffect(() => {
     if (lastUnlockedAchievement && lastUnlockedAchievement !== toastKey) {
       setToastKey(lastUnlockedAchievement)
+      sessionStorage.setItem('lastShownAch', lastUnlockedAchievement)
       setShowAchToast(true)
       const t = setTimeout(() => setShowAchToast(false), 4500)
       return () => clearTimeout(t)

@@ -13,10 +13,17 @@ const CATEGORY_META = {
   'other':        { emoji: '❓', label: 'Other',        color: 'bg-gray-700/40' },
 }
 
-const DistractionLog = () => {
+const DistractionLog = ({ isOpen: isOpenProp, onToggle }) => {
   const { logs, addLog, removeLog, daySummary } = useDistractionStore()
   const { addItem: parkItem } = useParkingLotStore()
-  const [open, setOpen] = useState(false)
+  // Support both controlled (via Layout dock) and uncontrolled modes
+  const [openInternal, setOpenInternal] = useState(false)
+  const open = isOpenProp !== undefined ? isOpenProp : openInternal
+  const setOpen = (v) => {
+    const next = typeof v === 'function' ? v(open) : v
+    setOpenInternal(next)
+    onToggle?.(next)
+  }
   const [text, setText] = useState('')
   const [category, setCategory] = useState('other')
   const [view, setView] = useState('log') // 'log' | 'summary'
@@ -67,26 +74,15 @@ const DistractionLog = () => {
 
   return (
     <>
-      {/* Floating trigger button */}
-      <motion.button
-        onClick={() => setOpen((v) => !v)}
-        whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.95 }}
-        title="Distraction Log (d)"
-        className="fixed bottom-20 right-4 z-50 w-12 h-12 rounded-full bg-rose-600 hover:bg-rose-500 text-white shadow-lg flex items-center justify-center text-xl transition-colors"
-      >
-        🚨
-      </motion.button>
-
-      {/* Panel */}
+      {/* Panel — triggered by unified FAB dock in Layout */}
       <AnimatePresence>
         {open && (
           <motion.div
-            initial={{ opacity: 0, y: 20, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.95 }}
+            initial={{ opacity: 0, x: 20, scale: 0.95 }}
+            animate={{ opacity: 1, x: 0, scale: 1 }}
+            exit={{ opacity: 0, x: 20, scale: 0.95 }}
             transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-            className="fixed bottom-16 right-20 z-50 w-80 max-h-[32rem] bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+            className="fixed bottom-20 right-20 z-50 w-80 max-h-[32rem] bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
           >
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">

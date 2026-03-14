@@ -14,21 +14,48 @@ const PRESET_COLORS = [
 ]
 
 const Toggle = ({ label, checked, onChange, description }) => (
-  <div className="flex items-start justify-between gap-4">
-    <div>
-      <span className="text-white text-sm">{label}</span>
+  <div className="flex items-start justify-between gap-4 bg-gray-800/50 rounded-xl px-3 py-2.5">
+    <div className="flex-1 min-w-0">
+      <span className="text-white text-sm font-medium">{label}</span>
       {description && <p className="text-xs text-gray-500 mt-0.5">{description}</p>}
     </div>
     <button
       role="switch"
       aria-checked={checked}
       onClick={onChange}
-      className={`relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors ${checked ? 'bg-purple-600' : 'bg-gray-600'}`}
+      className={`relative inline-flex h-6 w-11 shrink-0 rounded-full transition-all duration-300 ${
+        checked
+          ? 'bg-purple-600 shadow-[0_0_12px_rgba(147,51,234,0.6)]'
+          : 'bg-gray-700'
+      }`}
     >
-      <span
-        className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-4' : 'translate-x-0'}`}
+      <motion.span
+        layout
+        transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+        className={`inline-block h-6 w-6 rounded-full shadow-md ${
+          checked ? 'bg-white translate-x-5' : 'bg-gray-300 translate-x-0'
+        }`}
       />
     </button>
+  </div>
+)
+
+const SegmentedControl = ({ value, onChange, options }) => (
+  <div className="flex bg-gray-900 rounded-xl p-1 gap-1">
+    {options.map((opt) => (
+      <button
+        key={opt.value}
+        onClick={() => onChange(opt.value)}
+        className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-xs font-medium transition-all duration-200 ${
+          value === opt.value
+            ? 'bg-purple-600 text-white shadow-[0_0_10px_rgba(147,51,234,0.4)]'
+            : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'
+        }`}
+      >
+        {opt.icon && <span>{opt.icon}</span>}
+        {opt.label}
+      </button>
+    ))}
   </div>
 )
 
@@ -46,9 +73,9 @@ const nukeAllData = () => {
 const SettingsPanel = () => {
   const {
     soundEnabled, confettiEnabled, gamificationEnabled, timerVisible,
-    doNotDisturb, analyticsVisible, timelineDockVisible,
+    doNotDisturb, timelineDockVisible,
     toggleSound, toggleConfetti, toggleGamification, toggleTimer,
-    toggleDoNotDisturb, toggleAnalytics, toggleTimelineDock,
+    toggleDoNotDisturb, toggleTimelineDock,
   } = useSettingsStore()
   const { freshStart } = useTasksStore()
   const { tags, addTag, removeTag, resetTags } = useTagsStore()
@@ -103,7 +130,6 @@ const SettingsPanel = () => {
               <Toggle label="Confetti" checked={confettiEnabled} onChange={toggleConfetti} />
               <Toggle label="Gamification" checked={gamificationEnabled} onChange={toggleGamification} description="XP, levels, streaks" />
               <Toggle label="Show Timer" checked={timerVisible} onChange={toggleTimer} />
-              <Toggle label="Analytics Panel" checked={analyticsVisible} onChange={toggleAnalytics} description="Show stats dashboard" />
               <Toggle label="Timeline Dock" checked={timelineDockVisible} onChange={toggleTimelineDock} description="Due-date sidebar" />
               <Toggle label="Do Not Disturb" checked={doNotDisturb} onChange={toggleDoNotDisturb} description="Mute non-deadline alerts" />
 
@@ -193,13 +219,24 @@ const SettingsPanel = () => {
               </div>
 
               {/* Appearance */}
-              <div className="border-t border-gray-700 pt-4">
+              <div className="border-t border-gray-700/60 pt-4">
                 <button
                   onClick={() => setShowAppearance((v) => !v)}
-                  className="flex items-center justify-between w-full text-sm text-gray-300 hover:text-white transition-colors"
+                  className="flex items-center justify-between w-full group"
                 >
-                  <span>🎨 Appearance</span>
-                  <span className="text-gray-500">{showAppearance ? '▲' : '▼'}</span>
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-lg bg-purple-600/20 flex items-center justify-center">
+                      <span className="text-xs">🎨</span>
+                    </div>
+                    <span className="text-xs font-bold tracking-widest uppercase text-purple-400">Appearance</span>
+                  </div>
+                  <motion.span
+                    animate={{ rotate: showAppearance ? 180 : 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="text-gray-600 group-hover:text-gray-400 transition-colors text-xs"
+                  >
+                    ▼
+                  </motion.span>
                 </button>
 
                 <AnimatePresence>
@@ -210,59 +247,93 @@ const SettingsPanel = () => {
                       exit={{ height: 0, opacity: 0 }}
                       className="overflow-hidden"
                     >
-                      <div className="mt-3 space-y-3">
-                        <Toggle label="High Contrast" checked={highContrast} onChange={toggleHighContrast} />
+                      <div className="mt-4 space-y-4">
+                        {/* High Contrast */}
+                        <Toggle
+                          label="High Contrast"
+                          description="Increases text & border contrast"
+                          checked={highContrast}
+                          onChange={toggleHighContrast}
+                        />
 
-                        <div className="space-y-1">
-                          <label className="text-xs text-gray-400">Color Scheme</label>
-                          <select
+                        {/* Color Scheme */}
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-1.5 px-1">
+                            <span className="text-[10px] font-semibold tracking-widest uppercase text-gray-500">Color Scheme</span>
+                          </div>
+                          <SegmentedControl
                             value={colorScheme}
-                            onChange={(e) => e.target.value !== colorScheme && toggleColorScheme()}
-                            className="w-full bg-gray-800 text-white text-sm rounded px-2 py-1.5 outline-none focus:ring-1 focus:ring-purple-500"
-                          >
-                            <option value="dark">Dark</option>
-                            <option value="light">Light</option>
-                          </select>
+                            onChange={(v) => v !== colorScheme && toggleColorScheme()}
+                            options={[
+                              { value: 'dark',  icon: '🌑', label: 'Dark' },
+                              { value: 'light', icon: '☀️', label: 'Light' },
+                            ]}
+                          />
                         </div>
 
-                        <div className="space-y-1">
-                          <label className="text-xs text-gray-400">Animation Intensity</label>
-                          <select
+                        {/* Animation Intensity */}
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-1.5 px-1">
+                            <span className="text-[10px] font-semibold tracking-widest uppercase text-gray-500">Animation Intensity</span>
+                          </div>
+                          <SegmentedControl
                             value={animationIntensity}
-                            onChange={(e) => setAnimationIntensity(e.target.value)}
-                            className="w-full bg-gray-800 text-white text-sm rounded px-2 py-1.5 outline-none focus:ring-1 focus:ring-purple-500"
-                          >
-                            <option value="low">Low</option>
-                            <option value="medium">Medium</option>
-                            <option value="high">High</option>
-                          </select>
+                            onChange={setAnimationIntensity}
+                            options={[
+                              { value: 'low',    icon: '🧊', label: 'Low' },
+                              { value: 'medium', icon: '⚡', label: 'Medium' },
+                              { value: 'high',   icon: '🔥', label: 'High' },
+                            ]}
+                          />
                         </div>
 
-                        <div className="space-y-1">
-                          <label className="text-xs text-gray-400">Font Size</label>
-                          <select
+                        {/* Font Size */}
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-1.5 px-1">
+                            <span className="text-[10px] font-semibold tracking-widest uppercase text-gray-500">Font Size</span>
+                          </div>
+                          <SegmentedControl
                             value={fontSize}
-                            onChange={(e) => setFontSize(e.target.value)}
-                            className="w-full bg-gray-800 text-white text-sm rounded px-2 py-1.5 outline-none focus:ring-1 focus:ring-purple-500"
-                          >
-                            <option value="small">Small</option>
-                            <option value="medium">Medium</option>
-                            <option value="large">Large</option>
-                          </select>
+                            onChange={setFontSize}
+                            options={[
+                              { value: 'small',  label: 'Aa', icon: null },
+                              { value: 'medium', label: 'AA', icon: null },
+                              { value: 'large',  label: 'A+', icon: null },
+                            ]}
+                          />
                         </div>
 
-                        <div className="space-y-1">
-                          <label className="text-xs text-gray-400">Background Pattern</label>
-                          <select
-                            value={backgroundPattern}
-                            onChange={(e) => setBackgroundPattern(e.target.value)}
-                            className="w-full bg-gray-800 text-white text-sm rounded px-2 py-1.5 outline-none focus:ring-1 focus:ring-purple-500"
-                          >
-                            <option value="none">None</option>
-                            <option value="geometric">Geometric</option>
-                            <option value="nature">Nature</option>
-                            <option value="abstract">Abstract</option>
-                          </select>
+                        {/* Background Pattern */}
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-1.5 px-1">
+                            <span className="text-[10px] font-semibold tracking-widest uppercase text-gray-500">Background Pattern</span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-1.5">
+                            {[
+                              { value: 'none',          icon: '◻️', label: 'None' },
+                              { value: 'geometric',     icon: '⬡',  label: 'Geometric' },
+                              { value: 'nature',        icon: '🌿', label: 'Nature' },
+                              { value: 'abstract',      icon: '🌀', label: 'Abstract' },
+                              { value: 'constellation', icon: '✦',  label: 'Stars + Grid' },
+                              { value: 'circuit',       icon: '⬡',  label: 'Circuit' },
+                            ].map((opt) => (
+                              <button
+                                key={opt.value}
+                                onClick={() => setBackgroundPattern(opt.value)}
+                                className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium transition-all duration-200 border ${
+                                  backgroundPattern === opt.value
+                                    ? 'bg-purple-600/20 border-purple-500/60 text-purple-300 shadow-[0_0_10px_rgba(147,51,234,0.2)]'
+                                    : 'bg-gray-800/60 border-gray-700/50 text-gray-400 hover:border-gray-600 hover:text-gray-200'
+                                }`}
+                              >
+                                <span>{opt.icon}</span>
+                                <span>{opt.label}</span>
+                                {backgroundPattern === opt.value && (
+                                  <span className="ml-auto text-purple-400">✓</span>
+                                )}
+                              </button>
+                            ))}
+                          </div>
                         </div>
                       </div>
                     </motion.div>

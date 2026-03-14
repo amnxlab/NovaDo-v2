@@ -49,9 +49,9 @@ const nukeAllData = () => {
 export default function SettingsPage() {
   const {
     soundEnabled, confettiEnabled, gamificationEnabled, timerVisible,
-    doNotDisturb, analyticsVisible, timelineDockVisible,
+    doNotDisturb, timelineDockVisible,
     toggleSound, toggleConfetti, toggleGamification, toggleTimer,
-    toggleDoNotDisturb, toggleAnalytics, toggleTimelineDock,
+    toggleDoNotDisturb, toggleTimelineDock,
   } = useSettingsStore()
   const { freshStart } = useTasksStore()
   const { tags, addTag, removeTag, resetTags } = useTagsStore()
@@ -94,7 +94,6 @@ export default function SettingsPage() {
             <Toggle label="Confetti" checked={confettiEnabled} onChange={toggleConfetti} />
             <Toggle label="Gamification" checked={gamificationEnabled} onChange={toggleGamification} description="XP, levels, streaks" />
             <Toggle label="Show Timer" checked={timerVisible} onChange={toggleTimer} />
-            <Toggle label="Analytics Panel" checked={analyticsVisible} onChange={toggleAnalytics} description="Show stats dashboard" />
             <Toggle label="Timeline Dock" checked={timelineDockVisible} onChange={toggleTimelineDock} description="Due-date sidebar" />
             <Toggle label="Do Not Disturb" checked={doNotDisturb} onChange={toggleDoNotDisturb} description="Mute non-deadline alerts" />
           </div>
