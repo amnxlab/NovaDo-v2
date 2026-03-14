@@ -158,7 +158,7 @@ npm run client    # → Vite dev server on :3000
 ### Tasks — Metro Timeline
 
 <p align="center">
-  <img src="pics/Route.png" alt="Metro Timeline Dock" width="720"/>
+  <img src="pics/Route.png" alt="Metro Timeline Dock" lenght="720"/>
 </p>
 
 Your task list is rendered as a **vertical metro line** docked to the right side:
