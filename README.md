@@ -31,6 +31,7 @@
   - [Windows](#windows)
   - [Manual Setup](#manual-setup)
 - [Feature Guide](#feature-guide)
+  - [Local Storage Web App](#local-storage-web-app)
   - [Tasks — Metro Timeline](#tasks--metro-timeline)
   - [Analytics Dashboard](#analytics-dashboard)
   - [Roadmaps & Skill Trees](#roadmaps--skill-trees)
@@ -157,6 +158,8 @@ npm run client    # → Vite dev server on :3000
 <p align="center">
   <img src="pics/login.png" alt="NovaDo Login" width="720"/>
 </p>
+
+---
 
 All your data stored in local database, which gaves your privacy.
 
