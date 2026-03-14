@@ -18,8 +18,6 @@
   <img src="https://img.shields.io/badge/license-MIT-22c55e?style=flat-square"/>
 </p>
 
-<br/>
-
 ---
 
 ## Table of Contents
