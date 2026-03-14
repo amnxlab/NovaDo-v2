@@ -5,6 +5,8 @@ import RoutinesPage from './pages/RoutinesPage'
 import RoadmapsPage from './pages/RoadmapsPage'
 import AnalyticsPage from './pages/AnalyticsPage'
 import SettingsPage from './pages/SettingsPage'
+import AuthPage from './pages/AuthPage'
+import useAuthStore from './store/authStore'
 import './App.css'
 
 const router = createBrowserRouter([
@@ -22,6 +24,11 @@ const router = createBrowserRouter([
 ])
 
 export default function App() {
+  const { token } = useAuthStore()
+
+  if (!token) return <AuthPage />
+
   return <RouterProvider router={router} />
 }
+
 

@@ -3,7 +3,14 @@
  * while keeping localStorage as a fast synchronous cache.
  */
 
+import { getAuthToken } from '../store/authStore'
+
 const API_BASE = '/api/store'
+
+function authHeaders() {
+  const token = getAuthToken()
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
 
 export function createFileStorage() {
   return {
@@ -12,22 +19,25 @@ export function createFileStorage() {
       const cached = localStorage.getItem(name)
 
       // 2. Async-fetch from server and update localStorage if server has newer data
-      fetch(`${API_BASE}/${encodeURIComponent(name)}`)
-        .then((res) => res.json())
-        .then((serverData) => {
-          if (serverData !== null) {
-            const serverStr = JSON.stringify(serverData)
-            const localStr = localStorage.getItem(name)
-            if (serverStr !== localStr) {
-              localStorage.setItem(name, serverStr)
-              // Trigger a page-level event so stores can rehydrate if needed
-              window.dispatchEvent(new CustomEvent('novado-sync', { detail: { name } }))
+      const token = getAuthToken()
+      if (token) {
+        fetch(`${API_BASE}/${encodeURIComponent(name)}`, { headers: authHeaders() })
+          .then((res) => res.json())
+          .then((serverData) => {
+            if (serverData !== null) {
+              const serverStr = JSON.stringify(serverData)
+              const localStr = localStorage.getItem(name)
+              if (serverStr !== localStr) {
+                localStorage.setItem(name, serverStr)
+                // Trigger a page-level event so stores can rehydrate if needed
+                window.dispatchEvent(new CustomEvent('novado-sync', { detail: { name } }))
+              }
             }
-          }
-        })
-        .catch(() => {
-          // Server down — localStorage cache is fine
-        })
+          })
+          .catch(() => {
+            // Server down — localStorage cache is fine
+          })
+      }
 
       return cached
     },
@@ -42,7 +52,10 @@ export function createFileStorage() {
 
     removeItem: (name) => {
       localStorage.removeItem(name)
-      fetch(`${API_BASE}/${encodeURIComponent(name)}`, { method: 'DELETE' }).catch(() => {})
+      fetch(`${API_BASE}/${encodeURIComponent(name)}`, {
+        method: 'DELETE',
+        headers: authHeaders(),
+      }).catch(() => {})
     },
   }
 }
@@ -59,7 +72,7 @@ function debouncedSave(name, value) {
     pendingWrites.delete(name)
     fetch(`${API_BASE}/${encodeURIComponent(name)}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: value, // Already JSON-stringified by Zustand
     }).catch(() => {
       // Server down — data is still in localStorage

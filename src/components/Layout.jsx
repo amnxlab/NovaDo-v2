@@ -15,6 +15,7 @@ import useRoadmapTaskInjector from '../hooks/useRoadmapTaskInjector'
 import useXPStore from '../store/xpStore'
 import useTimerStore from '../store/timerStore'
 import useCustomizationStore from '../store/customizationStore'
+import useAuthStore from '../store/authStore'
 import { useEffect } from 'react'
 
 const NAV_ITEMS = [
@@ -29,6 +30,7 @@ export default function Layout() {
   useRoadmapTaskInjector()
 
   const { todayCount } = useXPStore()
+  const { user, clearAuth } = useAuthStore()
   const { colorScheme, fontSize, animationIntensity, backgroundPattern, highContrast } = useCustomizationStore()
 
   // Sidebar collapsed state
@@ -147,6 +149,41 @@ export default function Layout() {
               </NavLink>
             ))}
           </nav>
+
+          {/* User info + Logout */}
+          <div className={`border-t border-gray-800 ${collapsed ? 'p-2' : 'p-3'}`}>
+            {collapsed ? (
+              <div className="flex flex-col items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-purple-700 flex items-center justify-center text-sm font-bold text-white">
+                  {user?.username?.[0]?.toUpperCase() ?? '?'}
+                </div>
+                <button
+                  onClick={clearAuth}
+                  title="Sign out"
+                  className="text-gray-600 hover:text-red-400 transition-colors text-xs"
+                >
+                  ⏏
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-purple-700 shrink-0 flex items-center justify-center text-sm font-bold text-white">
+                  {user?.username?.[0]?.toUpperCase() ?? '?'}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium text-white truncate">{user?.username}</p>
+                  <p className="text-[10px] text-gray-600">Signed in</p>
+                </div>
+                <button
+                  onClick={clearAuth}
+                  title="Sign out"
+                  className="shrink-0 text-gray-600 hover:text-red-400 transition-colors text-xs px-1.5 py-1 rounded hover:bg-red-900/20"
+                >
+                  ⏏
+                </button>
+              </div>
+            )}
+          </div>
 
           {/* Collapse toggle */}
           <button
