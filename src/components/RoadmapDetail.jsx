@@ -5,6 +5,7 @@ import useAICoachStore from '../store/aiCoachStore'
 import { computeSchedule } from '../utils/scheduler'
 import EmojiPicker from './EmojiPicker'
 import DependencyTree from './DependencyTree'
+import SkillTagInput from './SkillTagInput'
 import { isYouTubePlaylist, fetchYouTubePlaylist } from '../utils/youtubeImport'
 import { parseCurriculumText } from '../utils/courseParser'
 
@@ -92,7 +93,7 @@ function ImportPreview({ modules, onConfirm, onClear }) {
 }
 
 // ── Add Course Form ────────────────────────────────────────────────────────────
-function AddCourseForm({ roadmapId, existingCourses, onDone }) {
+function AddCourseForm({ roadmapId, existingCourses, onDone, allSkillSuggestions = [] }) {
   const addCourse = useRoadmapsStore((s) => s.addCourse)
   const bulkAddModules = useRoadmapsStore((s) => s.bulkAddModules)
   const [name, setName] = useState('')
@@ -102,6 +103,7 @@ function AddCourseForm({ roadmapId, existingCourses, onDone }) {
   const [deadline, setDeadline] = useState('')
   const [defaultMode, setDefaultMode] = useState('inherit')
   const [prereqs, setPrereqs] = useState([])
+  const [skills, setSkills] = useState([])
 
   // Import state
   const [importTab, setImportTab] = useState(null) // null | 'youtube' | 'paste'
@@ -155,6 +157,7 @@ function AddCourseForm({ roadmapId, existingCourses, onDone }) {
       name: name.trim(), source: source.trim(), url: url.trim(),
       emoji, deadline: deadline || null, defaultMode,
       prerequisiteCourseIds: prereqs,
+      skills,
     })
     if (confirmedModules && confirmedModules.length > 0) {
       bulkAddModules(roadmapId, courseId, confirmedModules)
@@ -265,6 +268,12 @@ function AddCourseForm({ roadmapId, existingCourses, onDone }) {
           <label className="text-gray-500 text-xs mb-1 block">Default Mode</label>
           <ModeSelector value={defaultMode} onChange={setDefaultMode} includeInherit />
         </div>
+      </div>
+
+      {/* Skills */}
+      <div>
+        <label className="text-gray-500 text-xs mb-1 block">🌱 Skills you'll gain from this course</label>
+        <SkillTagInput value={skills} onChange={setSkills} suggestions={allSkillSuggestions} placeholder="e.g. React, TypeScript, UI…" />
       </div>
 
       {/* Prerequisites */}
@@ -428,7 +437,7 @@ function ModuleRow({ module, course, roadmap, onStart }) {
 }
 
 // ── Course Section ─────────────────────────────────────────────────────────────
-function CourseSection({ course, roadmap, onStart }) {
+function CourseSection({ course, roadmap, onStart, allSkillSuggestions = [] }) {
   const deleteCourse = useRoadmapsStore((s) => s.deleteCourse)
   const updateCourse = useRoadmapsStore((s) => s.updateCourse)
   const bulkAddModules = useRoadmapsStore((s) => s.bulkAddModules)
@@ -441,6 +450,7 @@ function CourseSection({ course, roadmap, onStart }) {
   const [editUrl, setEditUrl] = useState(course.url || '')
   const [editDeadline, setEditDeadline] = useState(course.deadline || '')
   const [editPrereqs, setEditPrereqs] = useState(course.prerequisiteCourseIds || [])
+  const [editSkills, setEditSkills] = useState(course.skills || [])
   const [importMode, setImportMode] = useState(null) // null | 'youtube' | 'paste'
   const [importUrl, setImportUrl] = useState(course.url || '')
   const [pasteText, setPasteText] = useState('')
@@ -457,6 +467,7 @@ function CourseSection({ course, roadmap, onStart }) {
       url: editUrl.trim(),
       deadline: editDeadline || null,
       prerequisiteCourseIds: editPrereqs,
+      skills: editSkills,
     })
     setEditing(false)
   }
@@ -507,6 +518,11 @@ function CourseSection({ course, roadmap, onStart }) {
               </div>
             </div>
           )}
+          {/* Skills */}
+          <div>
+            <label className="text-gray-500 text-xs mb-1 block">🌱 Skills gained from this course</label>
+            <SkillTagInput value={editSkills} onChange={setEditSkills} suggestions={allSkillSuggestions} placeholder="e.g. React, Node, SQL…" />
+          </div>
           <div className="flex gap-2 justify-end">
             <button onClick={() => setEditing(false)} className="px-3 py-1 text-gray-500 hover:text-white text-xs">Cancel</button>
             <button onClick={saveEdit} disabled={!editName.trim()}
@@ -561,6 +577,7 @@ function CourseSection({ course, roadmap, onStart }) {
               setEditUrl(course.url || '')
               setEditDeadline(course.deadline || '')
               setEditPrereqs(course.prerequisiteCourseIds || [])
+              setEditSkills(course.skills || [])
               setEditing(true)
             }}
             className="text-gray-600 hover:text-blue-400 text-sm transition-colors px-1"
@@ -775,6 +792,11 @@ export default function RoadmapDetail({ roadmap, onClose, onStartModule }) {
   const allModules = roadmap.courses.flatMap((c) => c.modules)
   const completedModules = allModules.filter((m) => m.completedAt).length
   const pct = allModules.length ? Math.round((completedModules / allModules.length) * 100) : 0
+
+  // Collect all unique skill suggestions from this roadmap
+  const allSkillSuggestions = [...new Set(
+    roadmap.courses.flatMap((c) => c.skills || [])
+  )]
 
   return (
     <motion.div
@@ -1108,6 +1130,7 @@ export default function RoadmapDetail({ roadmap, onClose, onStartModule }) {
                 course={course}
                 roadmap={roadmap}
                 onStart={onStartModule}
+                allSkillSuggestions={allSkillSuggestions}
               />
             ))}
 
@@ -1116,6 +1139,7 @@ export default function RoadmapDetail({ roadmap, onClose, onStartModule }) {
                 roadmapId={roadmap.id}
                 existingCourses={roadmap.courses}
                 onDone={() => setAddingCourse(false)}
+                allSkillSuggestions={allSkillSuggestions}
               />
             ) : (
               <button

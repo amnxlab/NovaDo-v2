@@ -152,9 +152,15 @@ export default function SettingsPage() {
                 className="w-full bg-gray-700 text-white text-sm rounded-lg px-3 py-2 outline-none focus:ring-1 focus:ring-purple-500"
               >
                 <option value="none">None</option>
-                <option value="geometric">Geometric</option>
-                <option value="nature">Nature</option>
-                <option value="abstract">Abstract</option>
+                <option value="geometric">Geometric — dot grid</option>
+                <option value="dots-grid">Dots Grid — dense matrix</option>
+                <option value="circuit">Circuit — crosshatch grid</option>
+                <option value="constellation">Constellation — stars + grid</option>
+                <option value="abstract">Abstract — diagonal chevrons</option>
+                <option value="mesh">Mesh — gradient overlay</option>
+                <option value="aurora">Aurora — colorful corners</option>
+                <option value="neon-glow">Neon Glow — purple/cyan</option>
+                <option value="nature">Nature — green ambient</option>
               </select>
             </div>
           </div>

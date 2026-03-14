@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import useDistractionStore from '../store/distractionStore'
+import useParkingLotStore from '../store/parkingLotStore'
 
 const CATEGORY_META = {
   'social-media': { emoji: '📱', label: 'Social Media', color: 'bg-blue-700/40' },
@@ -14,10 +15,12 @@ const CATEGORY_META = {
 
 const DistractionLog = () => {
   const { logs, addLog, removeLog, daySummary } = useDistractionStore()
+  const { addItem: parkItem } = useParkingLotStore()
   const [open, setOpen] = useState(false)
   const [text, setText] = useState('')
   const [category, setCategory] = useState('other')
   const [view, setView] = useState('log') // 'log' | 'summary'
+  const [parkedId, setParkedId] = useState(null) // id briefly highlighted after parking
   const inputRef = useRef(null)
 
   useEffect(() => {
@@ -43,6 +46,14 @@ const DistractionLog = () => {
     setText('')
     setCategory('other')
     inputRef.current?.focus()
+  }
+
+  const handlePark = (log) => {
+    parkItem(log.description)
+    removeLog(log.id)
+    setParkedId(log.id)
+    // brief flash feedback — clear after animation
+    setTimeout(() => setParkedId(null), 1200)
   }
 
   const today = new Date().toISOString().slice(0, 10)
@@ -75,7 +86,7 @@ const DistractionLog = () => {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-            className="fixed bottom-36 right-4 z-50 w-80 max-h-[32rem] bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+            className="fixed bottom-16 right-20 z-50 w-80 max-h-[32rem] bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
           >
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
@@ -151,6 +162,7 @@ const DistractionLog = () => {
                   ) : (
                     todayLogs.map((log) => {
                       const meta = CATEGORY_META[log.category] || CATEGORY_META.other
+                      const isThought = log.category === 'thought'
                       return (
                         <motion.div
                           key={log.id}
@@ -166,12 +178,23 @@ const DistractionLog = () => {
                             <p className="text-sm text-gray-200 break-words leading-snug">{log.description}</p>
                             <span className="text-[10px] text-gray-600">{formatTime(log.timestamp)}</span>
                           </div>
-                          <button
-                            onClick={() => removeLog(log.id)}
-                            className="shrink-0 opacity-0 group-hover:opacity-100 text-gray-600 hover:text-red-400 text-xs transition-opacity"
-                          >
-                            ×
-                          </button>
+                          <div className="shrink-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            {isThought && (
+                              <button
+                                onClick={() => handlePark(log)}
+                                title="Park this thought 💡"
+                                className="w-6 h-6 flex items-center justify-center rounded bg-amber-700/40 hover:bg-amber-600 text-xs transition-colors"
+                              >
+                                💡
+                              </button>
+                            )}
+                            <button
+                              onClick={() => removeLog(log.id)}
+                              className="w-6 h-6 flex items-center justify-center text-gray-600 hover:text-red-400 text-xs transition-colors"
+                            >
+                              ×
+                            </button>
+                          </div>
                         </motion.div>
                       )
                     })

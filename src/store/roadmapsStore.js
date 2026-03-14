@@ -48,6 +48,7 @@ export const makeCourse = (name, source = '', url = '', emoji = '📚', defaultM
   deadline: null, // 'YYYY-MM-DD'
   prerequisiteCourseIds: [],
   completed: false,
+  skills: [],    // string[] — skill tags gained from this course
 })
 
 const makeRoadmap = ({ name, emoji = '🗺️', description = '', deadline = null, dailyCapMins = 120, defaultMode = 'normal', colorTag = 'blue', priority = 'medium' }) => ({
@@ -115,6 +116,7 @@ const useRoadmapsStore = create(
         )
         if (courseOpts.deadline) c.deadline = courseOpts.deadline
         if (courseOpts.prerequisiteCourseIds) c.prerequisiteCourseIds = courseOpts.prerequisiteCourseIds
+        if (courseOpts.skills) c.skills = courseOpts.skills
         set((s) => ({
           roadmaps: s.roadmaps.map((r) =>
             r.id === roadmapId ? { ...r, courses: [...r.courses, c] } : r
@@ -128,6 +130,20 @@ const useRoadmapsStore = create(
           roadmaps: s.roadmaps.map((r) =>
             r.id === roadmapId
               ? { ...r, courses: r.courses.filter((c) => c.id !== courseId) }
+              : r
+          ),
+        })),
+
+      updateCourseSkills: (roadmapId, courseId, skills) =>
+        set((s) => ({
+          roadmaps: s.roadmaps.map((r) =>
+            r.id === roadmapId
+              ? {
+                  ...r,
+                  courses: r.courses.map((c) =>
+                    c.id === courseId ? { ...c, skills: skills.map((sk) => sk.trim()).filter(Boolean) } : c
+                  ),
+                }
               : r
           ),
         })),

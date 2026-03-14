@@ -55,21 +55,26 @@ const DATE_EXPRESSIONS = [
   { pattern: /\bby (sunday|sun)\b/i,    dayOfWeek: 0 },
 ]
 
+function toLocalDateString(d) {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
 function nextDayOfWeek(targetDow) {
   const now = new Date()
   const current = now.getDay()
   const diff = (targetDow - current + 7) % 7 || 7
   const d = new Date(now)
   d.setDate(d.getDate() + diff)
-  d.setHours(23, 59, 0, 0)
-  return d.toISOString()
+  return toLocalDateString(d)
 }
 
 function offsetFromToday(days) {
   const d = new Date()
   d.setDate(d.getDate() + days)
-  d.setHours(23, 59, 0, 0)
-  return d.toISOString()
+  return toLocalDateString(d)
 }
 
 /**

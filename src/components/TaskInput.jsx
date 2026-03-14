@@ -22,14 +22,19 @@ const DATE_SHORTCUTS = [
 function offsetDate(days) {
   const d = new Date()
   d.setDate(d.getDate() + days)
-  d.setHours(23, 59, 0, 0)
-  return d.toISOString()
+  // Return a plain YYYY-MM-DD local date string to avoid UTC timezone shifting
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
 }
 
-function formatDateDisplay(iso) {
-  if (!iso) return ''
-  const d = new Date(iso)
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+function formatDateDisplay(dateStr) {
+  if (!dateStr) return ''
+  // Parse YYYY-MM-DD as local date (not UTC) by splitting manually
+  const [y, m, d] = dateStr.slice(0, 10).split('-').map(Number)
+  const date = new Date(y, m - 1, d)
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
 
 const TaskInput = () => {
@@ -193,12 +198,9 @@ const TaskInput = () => {
                 <input
                   type="date"
                   aria-label="Custom due date"
-                  value={dueDate ? new Date(dueDate).toISOString().slice(0, 10) : ''}
+                  value={dueDate ? dueDate.slice(0, 10) : ''}
                   onChange={(e) => {
-                    if (!e.target.value) { setDueDate(null); return }
-                    const d = new Date(e.target.value)
-                    d.setHours(23, 59, 0, 0)
-                    setDueDate(d.toISOString())
+                    setDueDate(e.target.value || null)
                   }}
                   className="text-xs px-2 py-1 rounded-md bg-gray-700 text-gray-300 border border-gray-600 focus:outline-none focus:border-blue-500"
                 />

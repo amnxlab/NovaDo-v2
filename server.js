@@ -183,6 +183,12 @@ app.put('/api/store/:name', requireAuth, (req, res) => {
   const name = sanitizeStoreName(req.params.name)
   if (!name) return res.status(400).json({ error: 'Invalid store name' })
 
+  // Validate that the body is a Zustand StorageValue ({ state: {...}, version: N })
+  // Reject plain strings or other malformed payloads from old/stale clients
+  if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
+    return res.status(400).json({ error: 'Invalid store data format' })
+  }
+
   const filePath = getUserFilePath(req.userId, name)
   try {
     writeFileSync(filePath, JSON.stringify(req.body, null, 2), 'utf-8')
@@ -222,6 +228,15 @@ app.get('/api/stores', requireAuth, (req, res) => {
     }
   }
   res.json(stores)
+})
+
+// Handle JSON parse errors from body-parser (e.g. stale '[object Object]' from old clients)
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, next) => {
+  if (err.type === 'entity.parse.failed') {
+    return res.status(400).json({ error: 'Invalid JSON body' })
+  }
+  next(err)
 })
 
 app.listen(PORT, () => {

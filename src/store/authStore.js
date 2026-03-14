@@ -21,6 +21,9 @@ const useAuthStore = create(
           'parking-lot-storage', 'distraction-storage',
         ]
         storeKeys.forEach((k) => localStorage.removeItem(k))
+        // Reload the page to flush all in-memory Zustand state.
+        // This ensures no data bleeds between user sessions.
+        window.location.replace('/')
       },
     }),
     {

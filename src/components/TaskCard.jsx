@@ -19,17 +19,18 @@ function formatTime(seconds) {
 
 function formatDueDate(iso) {
   if (!iso) return null
-  const due = new Date(iso)
+  const [y, m, d] = iso.slice(0, 10).split('-').map(Number)
+  const due = new Date(y, m - 1, d)
   const now = new Date()
-  const diffMs = due - now
-  const diffDays = Math.ceil(diffMs / 86400000)
+  now.setHours(0, 0, 0, 0)
+  const diffDays = Math.round((due - now) / 86400000)
   if (diffDays < 0)  return { label: `${Math.abs(diffDays)}d overdue`, urgent: true }
   if (diffDays === 0) return { label: 'Due today', urgent: true }
   if (diffDays === 1) return { label: 'Due tomorrow', urgent: false }
   return { label: `Due in ${diffDays}d`, urgent: false }
 }
 
-const TaskCard = ({ task, onRun }) => {
+const TaskCard = ({ task, onRun, onFocus, dailyWins }) => {
   const { completeTask, deleteTask, addSubtask, completeSubtask, updateTask, lockedTaskId, lockIn, lockOut } = useTasksStore()
   const { awardXP, unlockAchievement, todayCount, focusStreak, streakDays } = useXPStore()
   const { soundEnabled, confettiEnabled } = useSettingsStore()
@@ -54,33 +55,75 @@ const TaskCard = ({ task, onRun }) => {
     if (isLockedIn) lockOut()
     completeTask(task.id)
 
-    // Calculate XP with multipliers — earlyBonus only if completed before the due day ends
+    // Calculate XP
     const earlyBonus = task.dueDate ? !isPastDue(task.dueDate) : false
-    const xp = calcTaskXP({
-      priority: task.priority,
-      earlyBonus,
-      subtaskCount: completedSubtaskCount,
-    })
+    const xp = calcTaskXP({ priority: task.priority, earlyBonus, subtaskCount: completedSubtaskCount })
     awardXP(xp, task.id)
-
-    // Wire analytics
     addDailyStat(1, 0, 0)
 
-    // Check achievements
-    if (todayCount === 0) unlockAchievement('first_task')
+    // ── Achievement checks ─────────────────────────────────────────────────
+    const { increment, markDailyComposite, streakDays } = useXPStore.getState()
+
+    // Task count milestones
+    const totalDone = increment('totalTasksDone')
+    if (totalDone === 1)   unlockAchievement('first_task')
+    if (totalDone >= 5)    unlockAchievement('tasks_5')
+    if (totalDone >= 10)   unlockAchievement('tasks_10')
+    if (totalDone >= 25)   unlockAchievement('tasks_25')
+    if (totalDone >= 50)   unlockAchievement('tasks_50')
+    if (totalDone >= 100)  unlockAchievement('tasks_100')
+    if (totalDone >= 250)  unlockAchievement('tasks_250')
+    if (totalDone >= 500)  unlockAchievement('tasks_500')
+    if (totalDone >= 1000) unlockAchievement('tasks_1000')
+
+    // Day streak achievements
+    const newStreak = useXPStore.getState().streakDays
+    if (newStreak >= 3)   unlockAchievement('streak_3')
+    if (newStreak >= 7)   unlockAchievement('streak_7')
+    if (newStreak >= 14)  unlockAchievement('streak_14')
+    if (newStreak >= 30)  unlockAchievement('streak_30')
+    if (newStreak >= 60)  unlockAchievement('streak_60')
+    if (newStreak >= 100) unlockAchievement('streak_100')
+
+    // Early + focus chain achievements
     if (earlyBonus) {
-      const didUnlock = unlockAchievement('deadline_dodger')
-      if (didUnlock) addNotification('🏆 Achievement unlocked: Deadline Dodger!', 'success')
+      const early = increment('earlyCompletions')
+      unlockAchievement('deadline_dodger')
+      if (early >= 5)   unlockAchievement('early_5')
+      if (early >= 25)  unlockAchievement('early_25')
+      if (early >= 100) unlockAchievement('early_100')
     }
-    if (focusStreak + 1 >= 5) {
-      const didUnlock = unlockAchievement('focus_chain_5')
-      if (didUnlock) addNotification('🏆 Achievement unlocked: In The Zone!', 'success')
+    if (task.deadlineType === 'hard' && earlyBonus) unlockAchievement('hard_deadline')
+
+    // Focus chain
+    const { focusStreak: newFocusStreak } = useXPStore.getState()
+    if (newFocusStreak >= 5)  unlockAchievement('focus_chain_5')
+    if (newFocusStreak >= 10) unlockAchievement('focus_chain_10')
+    if (newFocusStreak >= 25) unlockAchievement('focus_chain_25')
+
+    // Time-of-day surprise achievements
+    const hour = new Date().getHours()
+    if (hour < 8)  unlockAchievement('early_bird')
+    if (hour >= 22) unlockAchievement('night_owl')
+
+    // Weekend warrior
+    const dow = new Date().getDay()
+    if (dow === 0 || dow === 6) {
+      // count weekend tasks today
+      const todayDow = new Date(); todayDow.setHours(0,0,0,0)
+      const weekendToday = useXPStore.getState().todayCount
+      if (weekendToday >= 5) unlockAchievement('weekend_warrior')
     }
-    if (streakDays + 1 >= 3)  unlockAchievement('streak_3')
-    if (streakDays + 1 >= 7) {
-      const didUnlock = unlockAchievement('streak_7')
-      if (didUnlock) addNotification('🏆 Achievement unlocked: Week Warrior!', 'success')
-    }
+
+    // Daily composite (task + routine + module same day)
+    const composite = markDailyComposite('task')
+    if (composite.task && composite.routine && composite.module) unlockAchievement('triple_category')
+
+    // Tags
+    const tagSet = new Set((task.tags ?? []))
+    if (tagSet.size >= 3) unlockAchievement('tag_organizer')
+
+    if (todayCount === 0) unlockAchievement('first_task')
 
     if (soundEnabled) audioPlayer.playPop()
     if (confettiEnabled) {
@@ -92,6 +135,7 @@ const TaskCard = ({ task, onRun }) => {
     }
     addNotification(`+${xp} XP${earlyBonus ? ' ⚡ Early bonus!' : ''}`, 'success')
   }
+
 
   const handleSplit = (e) => {
     e.stopPropagation()
@@ -167,6 +211,13 @@ const TaskCard = ({ task, onRun }) => {
               )
             })}
 
+            {/* Daily Win badge */}
+            {dailyWins?.taskIds?.includes(task.id) && !task.completedAt && (
+              <span className="text-xs px-1.5 py-0.5 rounded-full bg-yellow-800/60 text-yellow-300 font-semibold">
+                🏆 Win
+              </span>
+            )}
+
             {dueInfo && (
               <span className={`text-xs px-1.5 py-0.5 rounded-full ${
                 dueInfo.urgent ? 'bg-red-900 text-red-300' : 'bg-gray-700 text-gray-300'
@@ -234,6 +285,14 @@ const TaskCard = ({ task, onRun }) => {
           >
             ▶ Run
           </button>
+          {onFocus && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onFocus(task) }}
+              className="px-2 py-1 bg-purple-800 hover:bg-purple-700 text-white rounded text-xs font-medium transition-all"
+            >
+              🎯 Focus
+            </button>
+          )}
           {subtasks.length === 0 && (
             <button
               onClick={handleSplit}

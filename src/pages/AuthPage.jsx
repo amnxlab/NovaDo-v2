@@ -34,6 +34,10 @@ export default function AuthPage() {
         return
       }
       setAuth(data.user, data.token)
+      // Full page reload so all Zustand stores rehydrate from the server
+      // with the valid token. Without this, stores that initialized while the
+      // user was on the auth screen (no token) would stay empty.
+      window.location.replace('/')
     } catch {
       setError('Cannot connect to server. Make sure the app is running.')
     } finally {

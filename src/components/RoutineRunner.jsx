@@ -7,7 +7,7 @@ const fmt = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 
 export default function RoutineRunner({ routine, onClose }) {
   const completeRoutine = useRoutinesStore((s) => s.completeRoutine)
-  const awardXP = useXPStore((s) => s.awardXP)
+  const { awardXP, unlockAchievement, increment, markDailyComposite } = useXPStore()
 
   const [stepIndex, setStepIndex] = useState(0)
   const [secondsLeft, setSecondsLeft] = useState(routine.steps[0]?.durationMins * 60 || 300)
@@ -37,14 +37,34 @@ export default function RoutineRunner({ routine, onClose }) {
     if (next >= routine.steps.length) {
       completeRoutine(routine.id)
       const updatedRoutine = useRoutinesStore.getState().routines.find((r) => r.id === routine.id)
-      setFinalStreak(updatedRoutine?.streak || 1)
+      const newStreak = updatedRoutine?.streak || 1
+      setFinalStreak(newStreak)
       setDone(true)
+
+      // ── Achievement checks ───────────────────────────────────────────────
+      const totalDone = increment('totalRoutinesDone')
+      unlockAchievement('first_routine')
+      if (totalDone >= 10)  unlockAchievement('routines_10')
+      if (totalDone >= 50)  unlockAchievement('routines_50')
+      if (totalDone >= 100) unlockAchievement('routines_100')
+
+      // Routine streak achievements
+      if (newStreak >= 7)  unlockAchievement('routine_streak_7')
+      if (newStreak >= 14) unlockAchievement('routine_streak_14')
+      if (newStreak >= 30) unlockAchievement('routine_streak_30')
+      if (newStreak >= 60) unlockAchievement('routine_streak_60')
+
+      // Daily composite (task + routine + module on same day)
+      const composite = markDailyComposite('routine')
+      if (composite.task && composite.routine && composite.module) unlockAchievement('triple_category')
+
     } else {
       setStepIndex(next)
       setSecondsLeft(routine.steps[next].durationMins * 60)
       setTimerActive(true)
     }
-  }, [currentStep, stepIndex, routine, completeRoutine, awardXP])
+  }, [currentStep, stepIndex, routine, completeRoutine, awardXP, unlockAchievement, increment, markDailyComposite])
+
 
   const stepProgress = (stepIndex / routine.steps.length) * 100
   const timeProgress = currentStep

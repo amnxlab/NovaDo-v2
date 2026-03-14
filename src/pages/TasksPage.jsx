@@ -4,7 +4,7 @@ import TaskList from '../components/TaskList'
 import TimelineDock from '../components/TimelineDock'
 
 export default function TasksPage() {
-  const { setRunningTask } = useOutletContext()
+  const { setRunningTask, setFocusTask, dailyWins } = useOutletContext()
 
   return (
     <>
@@ -13,7 +13,7 @@ export default function TasksPage() {
         <p className="text-sm text-gray-500">Capture, organize, and crush your tasks.</p>
       </div>
       <TaskInput />
-      <TaskList onRunTask={setRunningTask} />
+      <TaskList onRunTask={setRunningTask} onFocusTask={setFocusTask} dailyWins={dailyWins} />
       <TimelineDock />
     </>
   )

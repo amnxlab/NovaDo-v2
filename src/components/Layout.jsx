@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import NotificationCenter from './NotificationCenter'
@@ -11,19 +11,23 @@ import DistractionLog from './DistractionLog'
 import RoutineRunner from './RoutineRunner'
 import ModuleRunner from './ModuleRunner'
 import TaskRunner from './TaskRunner'
+import FocusMode from './FocusMode'
+import OverwhelmModal from './OverwhelmModal'
+import DailyWinsGate from './DailyWinsGate'
 import useRoadmapTaskInjector from '../hooks/useRoadmapTaskInjector'
 import useXPStore from '../store/xpStore'
 import useTimerStore from '../store/timerStore'
 import useCustomizationStore from '../store/customizationStore'
 import useAuthStore from '../store/authStore'
-import { useEffect } from 'react'
+import useTasksStore from '../store/tasksStore'
 
 const NAV_ITEMS = [
-  { to: '/',          icon: '📋', label: 'Tasks' },
-  { to: '/routines',  icon: '🔄', label: 'Routines' },
-  { to: '/roadmaps',  icon: '🗺️', label: 'Roadmaps' },
-  { to: '/analytics', icon: '📊', label: 'Analytics' },
-  { to: '/settings',  icon: '⚙️', label: 'Settings' },
+  { to: '/',             icon: '📋', label: 'Tasks'        },
+  { to: '/routines',    icon: '🔄', label: 'Routines'     },
+  { to: '/roadmaps',   icon: '🗺️', label: 'Roadmaps'     },
+  { to: '/analytics',  icon: '📊', label: 'Analytics'    },
+  { to: '/achievements', icon: '🏆', label: 'Achievements' },
+  { to: '/settings',   icon: '⚙️', label: 'Settings'     },
 ]
 
 export default function Layout() {
@@ -32,6 +36,7 @@ export default function Layout() {
   const { todayCount } = useXPStore()
   const { user, clearAuth } = useAuthStore()
   const { colorScheme, fontSize, animationIntensity, backgroundPattern, highContrast } = useCustomizationStore()
+  const { dailyWins, setDailyWins } = useTasksStore()
 
   // Sidebar collapsed state
   const [collapsed, setCollapsed] = useState(false)
@@ -41,9 +46,23 @@ export default function Layout() {
   const [runningModule, setRunningModule] = useState(null)
   const [runningTask, setRunningTask] = useState(null)
 
+  // ADHD Features
+  const [focusTask, setFocusTask] = useState(null)
+  const [showOverwhelm, setShowOverwhelm] = useState(false)
+
+  // Parking Lot state
+  const [parkingLotOpen, setParkingLotOpen] = useState(false)
+
   // Emotion tracker
-  const [emotionCheckpoint, setEmotionCheckpoint] = useState(() => todayCount)
   const [showEmotionTracker, setShowEmotionTracker] = useState(false)
+  const [emotionCheckpoint, setEmotionCheckpoint] = useState(0)
+
+  // Daily Wins gate — show if not set today
+  const todayStr = (() => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+  })()
+  const showDailyWins = !dailyWins || dailyWins.date !== todayStr
 
   // Clear stale persisted notifications
   useEffect(() => { localStorage.removeItem('notification-storage') }, [])
@@ -78,16 +97,34 @@ export default function Layout() {
         e.preventDefault()
         useTimerStore.getState().toggle()
       }
+      // Keyboard shortcut for Overwhelm button
+      if (e.key === 'o' && !focusTask) {
+        e.preventDefault()
+        setShowOverwhelm(true)
+      }
+      // Keyboard shortcut for Parking Lot
+      if (e.key === 'i') {
+        e.preventDefault()
+        setParkingLotOpen((v) => !v)
+      }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [])
+  }, [focusTask])
 
 
 
   return (
     <>
-      {/* Fullscreen modals */}
+      {/* Fullscreen modals — priority order matters (highest z-index last) */}
+      <AnimatePresence>
+        {showDailyWins && (
+          <DailyWinsGate
+            key="daily-wins"
+            onComplete={(ids) => setDailyWins(ids)}
+          />
+        )}
+      </AnimatePresence>
       <AnimatePresence>
         {showEmotionTracker && (
           <EmotionTracker key="emotion-check" taskId={null} onComplete={() => setShowEmotionTracker(false)} />
@@ -106,6 +143,16 @@ export default function Layout() {
       <AnimatePresence>
         {runningModule && (
           <ModuleRunner key={runningModule.module.id} item={runningModule} onClose={() => setRunningModule(null)} />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {focusTask && (
+          <FocusMode key={focusTask.id} task={focusTask} onClose={() => setFocusTask(null)} />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {showOverwhelm && (
+          <OverwhelmModal key="overwhelm" onClose={() => setShowOverwhelm(false)} />
         )}
       </AnimatePresence>
 
@@ -148,6 +195,23 @@ export default function Layout() {
                 {!collapsed && <span className="truncate">{label}</span>}
               </NavLink>
             ))}
+
+            {/* Overwhelm button */}
+            <button
+              onClick={() => setShowOverwhelm(true)}
+              title="I'm overwhelmed (O)"
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all mt-4 border ${
+                collapsed
+                  ? 'justify-center border-red-900/50 bg-red-950/30 hover:bg-red-900/40 text-red-400'
+                  : 'border-red-900/40 bg-red-950/20 hover:bg-red-900/30 text-red-400 hover:text-red-300'
+              }`}
+            >
+              <span className="text-lg shrink-0 w-6 text-center">😵</span>
+              {!collapsed && <span className="truncate">I'm Overwhelmed</span>}
+            </button>
+
+
+
           </nav>
 
           {/* User info + Logout */}
@@ -202,7 +266,7 @@ export default function Layout() {
           }`}
         >
           <div className="max-w-4xl mx-auto px-6 py-8 pb-28">
-            <Outlet context={{ setRunningRoutine, setRunningModule, setRunningTask }} />
+            <Outlet context={{ setRunningRoutine, setRunningModule, setRunningTask, setFocusTask, dailyWins }} />
           </div>
         </main>
       </div>
@@ -211,9 +275,20 @@ export default function Layout() {
       <XPBar />
       <PomodoroTimer />
       <AICoach />
-      <ParkingLot />
-      <DistractionLog />
       <NotificationCenter />
+      <ParkingLot open={parkingLotOpen} onClose={() => setParkingLotOpen(false)} />
+      <DistractionLog />
+
+      {/* Parking Lot floating trigger */}
+      <motion.button
+        onClick={() => setParkingLotOpen((v) => !v)}
+        whileHover={{ scale: 1.1 }}
+        whileTap={{ scale: 0.95 }}
+        title="Quick Capture (i)"
+        className="fixed bottom-36 right-4 z-50 w-12 h-12 rounded-full bg-amber-600 hover:bg-amber-500 text-white shadow-lg flex items-center justify-center text-xl transition-colors relative"
+      >
+        💡
+      </motion.button>
     </>
   )
 }

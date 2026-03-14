@@ -17,7 +17,7 @@ const SORT_OPTIONS = [
 
 const priorityOrder = { urgent: 4, high: 3, medium: 2, low: 1 }
 
-const TaskList = ({ onRunTask }) => {
+const TaskList = ({ onRunTask, onFocusTask, dailyWins }) => {
   const { tasks } = useTasksStore()
   const { autopilotEnabled } = useSettingsStore()
   const { addSuggestion } = useAICoachStore()
@@ -132,7 +132,7 @@ const TaskList = ({ onRunTask }) => {
 
       <AnimatePresence mode="popLayout">
         {activeTasks.length > 0 ? (
-          activeTasks.map((task) => <TaskCard key={task.id} task={task} onRun={onRunTask} />)
+          activeTasks.map((task) => <TaskCard key={task.id} task={task} onRun={onRunTask} onFocus={onFocusTask} dailyWins={dailyWins} />)
         ) : (
           <motion.div
             initial={{ opacity: 0 }}

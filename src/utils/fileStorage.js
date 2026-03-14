@@ -7,42 +7,68 @@ function authHeaders() {
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
+/**
+ * createFileStorage — returns a Zustand PersistStorage-compatible adapter.
+ *
+ * Zustand's persist middleware uses the PersistStorage interface where:
+ *   - getItem(name)          → returns StorageValue { state, version } | null  (or Promise thereof)
+ *   - setItem(name, value)   → receives StorageValue { state, version } (an object, NOT a string)
+ *   - removeItem(name)       → removes the stored data
+ *
+ * We store data as JSON strings on both localStorage (fast cache) and the
+ * Express server (durable). We must JSON.stringify/parse at our layer.
+ */
 export function createFileStorage() {
   return {
-    getItem: (name) => {
-      // 1. Return localStorage immediately for fast hydration
-      const cached = localStorage.getItem(name)
-
-      // 2. Async-fetch from server and update localStorage if server has newer data
+    /**
+     * Async getItem — Zustand awaits this Promise before hydrating the store.
+     * Server is always preferred over localStorage when the user is logged in.
+     * Falls back to localStorage cache if the server is unreachable.
+     * Returns a parsed StorageValue object (or null), NOT a raw JSON string.
+     */
+    getItem: async (name) => {
       const token = getTokenFromStore()
+
       if (token) {
-        fetch(`${API_BASE}/${encodeURIComponent(name)}`, { headers: authHeaders() })
-          .then((res) => res.json())
-          .then((serverData) => {
+        try {
+          const res = await fetch(`${API_BASE}/${encodeURIComponent(name)}`, {
+            headers: authHeaders(),
+          })
+          if (res.ok) {
+            const serverData = await res.json()
             if (serverData !== null) {
-              const serverStr = JSON.stringify(serverData)
-              const localStr = localStorage.getItem(name)
-              if (serverStr !== localStr) {
-                localStorage.setItem(name, serverStr)
-                // Trigger a page-level event so stores can rehydrate if needed
-                window.dispatchEvent(new CustomEvent('novado-sync', { detail: { name } }))
-              }
+              // Keep localStorage warm as a session-level cache
+              localStorage.setItem(name, JSON.stringify(serverData))
+              return serverData // Already a parsed StorageValue object
             }
-          })
-          .catch(() => {
-            // Server down — localStorage cache is fine
-          })
+          }
+        } catch {
+          // Server unreachable — fall through to localStorage cache
+        }
       }
 
-      return cached
+      // Not logged in, or server fetch failed — use localStorage cache
+      const raw = localStorage.getItem(name)
+      if (!raw) return null
+      try {
+        return JSON.parse(raw) // Parse the stored JSON string → StorageValue object
+      } catch {
+        return null
+      }
     },
 
+    /**
+     * setItem — Zustand calls this with a StorageValue { state, version } object.
+     * We must JSON.stringify it before storing in localStorage or sending to server.
+     */
     setItem: (name, value) => {
-      // 1. Write to localStorage immediately (fast)
-      localStorage.setItem(name, value)
+      const serialized = JSON.stringify(value)
 
-      // 2. Write to server (durable) — debounced
-      debouncedSave(name, value)
+      // 1. Write to localStorage immediately (fast, synchronous)
+      localStorage.setItem(name, serialized)
+
+      // 2. Persist to server (durable) — debounced to avoid hammering on rapid changes
+      debouncedSave(name, serialized)
     },
 
     removeItem: (name) => {
@@ -58,7 +84,7 @@ export function createFileStorage() {
 // Debounce writes to server to avoid hammering on rapid state changes
 const pendingWrites = new Map()
 
-function debouncedSave(name, value) {
+function debouncedSave(name, serialized) {
   if (pendingWrites.has(name)) {
     clearTimeout(pendingWrites.get(name))
   }
@@ -70,48 +96,12 @@ function debouncedSave(name, value) {
       fetch(`${API_BASE}/${encodeURIComponent(name)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: value, // Already JSON-stringified by Zustand
+        body: serialized, // JSON string of the StorageValue { state, version } object
       }).catch(() => {
-        // Server down — data is still in localStorage
+        // Server down — data is still in localStorage cache
       })
     }
   }, 500)
 
   pendingWrites.set(name, timer)
 }
-
-// On app startup, sync any localStorage data to server in case server files are empty
-export async function initialSync() {
-  const storeNames = [
-    'tasks-storage', 'xp-storage', 'settings-storage', 'analytics-storage',
-    'customization-storage', 'emotion-storage', 'ai-coach-storage',
-    'tags-storage', 'routines-storage', 'roadmaps-storage',
-  ]
-
-  for (const name of storeNames) {
-    try {
-      const res = await fetch(`${API_BASE}/${encodeURIComponent(name)}`, {
-        headers: authHeaders(),
-      })
-      const serverData = await res.json()
-
-      if (serverData !== null) {
-        // Server has data — use it as source of truth
-        localStorage.setItem(name, JSON.stringify(serverData))
-      } else {
-        // Server empty — push localStorage to server
-        const local = localStorage.getItem(name)
-        if (local) {
-          await fetch(`${API_BASE}/${encodeURIComponent(name)}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json', ...authHeaders() },
-            body: local,
-          })
-        }
-      }
-    } catch {
-      // Server not reachable — continue with localStorage only
-    }
-  }
-}
-

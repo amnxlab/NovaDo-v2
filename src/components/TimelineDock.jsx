@@ -5,8 +5,9 @@ import useSettingsStore from '../store/settingsStore'
 const getDaysUntil = (dueDateISO) => {
   const now = new Date()
   now.setHours(0, 0, 0, 0)
-  const due = new Date(dueDateISO)
-  due.setHours(0, 0, 0, 0)
+  // Parse YYYY-MM-DD as local date to avoid UTC midnight shifting the day
+  const [y, m, d] = dueDateISO.slice(0, 10).split('-').map(Number)
+  const due = new Date(y, m - 1, d)
   return Math.round((due - now) / 86400000)
 }
 

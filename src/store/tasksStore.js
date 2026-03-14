@@ -37,9 +37,17 @@ const useTasksStore = create(
   persist(
     (set, get) => ({
       tasks: [],
+      // Daily wins: { date: 'YYYY-MM-DD', taskIds: string[] }
+      dailyWins: null,
       // Runtime-only (excluded from persistence via partialize)
       lockedTaskId: null,
       sessionStart: null,
+
+      setDailyWins: (taskIds) => {
+        const today = new Date()
+        const date = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`
+        set({ dailyWins: { date, taskIds } })
+      },
 
       // ── Task CRUD ──────────────────────────────────────────────────────────
       addTask: (text, options = {}) => {
@@ -145,7 +153,7 @@ const useTasksStore = create(
       name: 'tasks-storage',
       storage: createFileStorage(),
       // Exclude runtime-only fields from persistence
-      partialize: (state) => ({ tasks: state.tasks, quests: state.quests }),
+      partialize: (state) => ({ tasks: state.tasks, quests: state.quests, dailyWins: state.dailyWins }),
     }
   )
 )
