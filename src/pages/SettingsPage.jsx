@@ -35,6 +35,7 @@ const ALL_STORAGE_KEYS = [
   'tasks-storage', 'xp-storage', 'ai-coach-storage', 'settings-storage',
   'analytics-storage', 'emotion-storage', 'customization-storage',
   'routines-storage', 'roadmaps-storage', 'tags-storage',
+  'parking-lot-storage', 'distraction-storage',
 ]
 
 const nukeAllData = () => {

@@ -6,12 +6,13 @@ import PomodoroTimer from './PomodoroTimer'
 import XPBar from './XPBar'
 import AICoach from './AICoach'
 import EmotionTracker from './EmotionTracker'
+import ParkingLot from './ParkingLot'
+import DistractionLog from './DistractionLog'
 import RoutineRunner from './RoutineRunner'
 import ModuleRunner from './ModuleRunner'
 import TaskRunner from './TaskRunner'
 import useRoadmapTaskInjector from '../hooks/useRoadmapTaskInjector'
 import useXPStore from '../store/xpStore'
-import useNotificationStore from '../store/notificationStore'
 import useTimerStore from '../store/timerStore'
 import useCustomizationStore from '../store/customizationStore'
 import { useEffect } from 'react'
@@ -27,7 +28,6 @@ const NAV_ITEMS = [
 export default function Layout() {
   useRoadmapTaskInjector()
 
-  const { addNotification } = useNotificationStore()
   const { todayCount } = useXPStore()
   const { colorScheme, fontSize, animationIntensity, backgroundPattern, highContrast } = useCustomizationStore()
 
@@ -81,10 +81,7 @@ export default function Layout() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
 
-  // Welcome notification
-  useEffect(() => {
-    addNotification('Welcome to NovaDo! Press t to add a task, p for timer.', 'info')
-  }, [addNotification])
+
 
   return (
     <>
@@ -177,6 +174,8 @@ export default function Layout() {
       <XPBar />
       <PomodoroTimer />
       <AICoach />
+      <ParkingLot />
+      <DistractionLog />
       <NotificationCenter />
     </>
   )

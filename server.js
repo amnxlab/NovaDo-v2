@@ -27,6 +27,8 @@ const VALID_STORES = new Set([
   'tags-storage',
   'routines-storage',
   'roadmaps-storage',
+  'parking-lot-storage',
+  'distraction-storage',
 ])
 
 function sanitizeStoreName(name) {
