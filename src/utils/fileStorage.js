@@ -1,14 +1,9 @@
-/**
- * Custom Zustand storage adapter that persists to JSON files on the backend
- * while keeping localStorage as a fast synchronous cache.
- */
-
-import { getAuthToken } from '../store/authStore'
+import { getTokenFromStore } from '../store/authStore'
 
 const API_BASE = '/api/store'
 
 function authHeaders() {
-  const token = getAuthToken()
+  const token = getTokenFromStore()
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
@@ -19,7 +14,7 @@ export function createFileStorage() {
       const cached = localStorage.getItem(name)
 
       // 2. Async-fetch from server and update localStorage if server has newer data
-      const token = getAuthToken()
+      const token = getTokenFromStore()
       if (token) {
         fetch(`${API_BASE}/${encodeURIComponent(name)}`, { headers: authHeaders() })
           .then((res) => res.json())
@@ -70,7 +65,7 @@ function debouncedSave(name, value) {
 
   const timer = setTimeout(() => {
     pendingWrites.delete(name)
-    const token = getAuthToken()
+    const token = getTokenFromStore()
     if (token) {
       fetch(`${API_BASE}/${encodeURIComponent(name)}`, {
         method: 'PUT',
@@ -95,7 +90,9 @@ export async function initialSync() {
 
   for (const name of storeNames) {
     try {
-      const res = await fetch(`${API_BASE}/${encodeURIComponent(name)}`)
+      const res = await fetch(`${API_BASE}/${encodeURIComponent(name)}`, {
+        headers: authHeaders(),
+      })
       const serverData = await res.json()
 
       if (serverData !== null) {
@@ -107,7 +104,7 @@ export async function initialSync() {
         if (local) {
           await fetch(`${API_BASE}/${encodeURIComponent(name)}`, {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...authHeaders() },
             body: local,
           })
         }
@@ -117,3 +114,4 @@ export async function initialSync() {
     }
   }
 }
+
