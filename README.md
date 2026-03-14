@@ -1,8 +1,9 @@
+<h1 align="center">NovaDo v2</h1>
 <p align="center">
   <img src="pics/Logo.png" alt="NovaDo Logo" width="800"/>
 </p>
 
-<h1 align="center">NovaDo v2</h1>
+
 <h3 align="center">Neuro-First Productivity OS</h3>
 
 <p align="center">
