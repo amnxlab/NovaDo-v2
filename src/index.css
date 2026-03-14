@@ -1,0 +1,79 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Font Size ───────────────────────────────────────────── */
+:root[data-font-size="small"]  { font-size: 13px; }
+:root[data-font-size="medium"] { font-size: 15px; }
+:root[data-font-size="large"]  { font-size: 18px; }
+
+/* ── Animation Intensity ─────────────────────────────────── */
+:root[data-anim="low"] *,
+:root[data-anim="low"] *::before,
+:root[data-anim="low"] *::after {
+  animation-duration: 0.01ms !important;
+  transition-duration: 0.01ms !important;
+}
+
+/* ── Light Color Scheme ──────────────────────────────────── */
+:root[data-color-scheme="light"] body {
+  background-color: #f3f4f6;
+  color: #111827;
+}
+:root[data-color-scheme="light"] .bg-gray-900 {
+  background-color: #ffffff !important;
+  color: #111827 !important;
+}
+:root[data-color-scheme="light"] .bg-gray-800 {
+  background-color: #f3f4f6 !important;
+  color: #111827 !important;
+}
+:root[data-color-scheme="light"] .bg-gray-700 {
+  background-color: #e5e7eb !important;
+  color: #111827 !important;
+}
+:root[data-color-scheme="light"] .bg-gray-600 { background-color: #d1d5db !important; }
+:root[data-color-scheme="light"] .text-white   { color: #111827 !important; }
+:root[data-color-scheme="light"] .text-gray-300 { color: #374151 !important; }
+:root[data-color-scheme="light"] .text-gray-400 { color: #4b5563 !important; }
+:root[data-color-scheme="light"] .text-gray-500 { color: #6b7280 !important; }
+:root[data-color-scheme="light"] .border-gray-700 { border-color: #d1d5db !important; }
+:root[data-color-scheme="light"] .border-gray-600 { border-color: #e5e7eb !important; }
+:root[data-color-scheme="light"] .shadow-xl { box-shadow: 0 4px 24px rgba(0,0,0,0.12) !important; }
+
+/* ── High Contrast ───────────────────────────────────────── */
+:root[data-high-contrast="true"] .text-gray-400,
+:root[data-high-contrast="true"] .text-gray-500 { color: #e5e7eb !important; }
+:root[data-high-contrast="true"] .border-gray-700 { border-color: #9ca3af !important; }
+:root[data-high-contrast="true"] input,
+:root[data-high-contrast="true"] button { outline-color: #e5e7eb; }
+
+/* ── Background Patterns ─────────────────────────────────── */
+:root[data-pattern="geometric"] #app-root {
+  background-image: radial-gradient(circle, rgba(107,114,128,0.25) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+:root[data-pattern="nature"] #app-root {
+  background-image:
+    radial-gradient(ellipse at 20% 50%, rgba(16,185,129,0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 50%, rgba(5,150,105,0.08) 0%, transparent 50%);
+}
+:root[data-pattern="abstract"] #app-root {
+  background-image:
+    linear-gradient(135deg, rgba(139,92,246,0.08) 25%, transparent 25%),
+    linear-gradient(225deg, rgba(59,130,246,0.08) 25%, transparent 25%),
+    linear-gradient(315deg, rgba(139,92,246,0.08) 25%, transparent 25%),
+    linear-gradient(45deg,  rgba(59,130,246,0.08) 25%, transparent 25%);
+  background-size: 48px 48px;
+}

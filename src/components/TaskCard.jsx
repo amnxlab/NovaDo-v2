@@ -1,0 +1,276 @@
+import { useState, useEffect } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import useTasksStore, { PRIORITIES } from '../store/tasksStore'
+import useXPStore, { calcTaskXP, ACHIEVEMENTS } from '../store/xpStore'
+import useSettingsStore from '../store/settingsStore'
+import useAnalyticsStore from '../store/analyticsStore'
+import useNotificationStore from '../store/notificationStore'
+import { audioPlayer } from '../utils/audio'
+import { suggestSubtasks, isPastDue } from '../utils/autoTagger'
+import useTagsStore from '../store/tagsStore'
+import confetti from 'canvas-confetti'
+
+function formatTime(seconds) {
+  if (seconds < 60) return `${seconds}s`
+  const m = Math.floor(seconds / 60)
+  if (m < 60) return `${m}m`
+  return `${Math.floor(m / 60)}h ${m % 60}m`
+}
+
+function formatDueDate(iso) {
+  if (!iso) return null
+  const due = new Date(iso)
+  const now = new Date()
+  const diffMs = due - now
+  const diffDays = Math.ceil(diffMs / 86400000)
+  if (diffDays < 0)  return { label: `${Math.abs(diffDays)}d overdue`, urgent: true }
+  if (diffDays === 0) return { label: 'Due today', urgent: true }
+  if (diffDays === 1) return { label: 'Due tomorrow', urgent: false }
+  return { label: `Due in ${diffDays}d`, urgent: false }
+}
+
+const TaskCard = ({ task, onRun }) => {
+  const { completeTask, deleteTask, addSubtask, completeSubtask, updateTask, lockedTaskId, lockIn, lockOut } = useTasksStore()
+  const { awardXP, unlockAchievement, todayCount, focusStreak, streakDays } = useXPStore()
+  const { soundEnabled, confettiEnabled } = useSettingsStore()
+  const { tags: TAG_DEFINITIONS } = useTagsStore()
+  const { addFocusSession, addDailyStat } = useAnalyticsStore()
+  const { addNotification } = useNotificationStore()
+  const [showSubtasks, setShowSubtasks] = useState(false)
+  const [showEmotionPrompt, setShowEmotionPrompt] = useState(false)
+
+  const isLockedIn = lockedTaskId === task.id
+  const totalSeconds = task.timeSpent || 0
+
+  const prioMeta = PRIORITIES[task.priority] ?? PRIORITIES.medium
+  const dueInfo = formatDueDate(task.dueDate)
+  const isOverdue = task.dueDate && isPastDue(task.dueDate) && !task.completedAt
+  const subtasks = task.subtasks ?? []
+  const completedSubtaskCount = subtasks.filter((s) => s.completedAt).length
+
+  const handleComplete = (e) => {
+    e.stopPropagation()
+    if (task.completedAt) return
+    if (isLockedIn) lockOut()
+    completeTask(task.id)
+
+    // Calculate XP with multipliers — earlyBonus only if completed before the due day ends
+    const earlyBonus = task.dueDate ? !isPastDue(task.dueDate) : false
+    const xp = calcTaskXP({
+      priority: task.priority,
+      earlyBonus,
+      subtaskCount: completedSubtaskCount,
+    })
+    awardXP(xp, task.id)
+
+    // Wire analytics
+    addDailyStat(1, 0, 0)
+
+    // Check achievements
+    if (todayCount === 0) unlockAchievement('first_task')
+    if (earlyBonus) {
+      const didUnlock = unlockAchievement('deadline_dodger')
+      if (didUnlock) addNotification('🏆 Achievement unlocked: Deadline Dodger!', 'success')
+    }
+    if (focusStreak + 1 >= 5) {
+      const didUnlock = unlockAchievement('focus_chain_5')
+      if (didUnlock) addNotification('🏆 Achievement unlocked: In The Zone!', 'success')
+    }
+    if (streakDays + 1 >= 3)  unlockAchievement('streak_3')
+    if (streakDays + 1 >= 7) {
+      const didUnlock = unlockAchievement('streak_7')
+      if (didUnlock) addNotification('🏆 Achievement unlocked: Week Warrior!', 'success')
+    }
+
+    if (soundEnabled) audioPlayer.playPop()
+    if (confettiEnabled) {
+      confetti({
+        particleCount: 80 + xp,
+        spread: 90,
+        origin: { x: e.clientX / window.innerWidth, y: e.clientY / window.innerHeight },
+      })
+    }
+    addNotification(`+${xp} XP${earlyBonus ? ' ⚡ Early bonus!' : ''}`, 'success')
+  }
+
+  const handleSplit = (e) => {
+    e.stopPropagation()
+    const suggested = suggestSubtasks(task.text)
+    suggested.forEach((text) => addSubtask(task.id, text))
+    setShowSubtasks(true)
+    addNotification(`Split into ${suggested.length} subtasks 🧩`, 'info')
+  }
+
+  const handleSubtaskComplete = (e, subtaskId) => {
+    e.stopPropagation()
+    completeSubtask(task.id, subtaskId)
+  }
+
+  const handleDelete = (e) => {
+    e.stopPropagation()
+    deleteTask(task.id)
+  }
+
+  const handlePriorityChange = (e, newPriority) => {
+    e.stopPropagation()
+    updateTask(task.id, { priority: newPriority })
+  }
+
+  const borderClass = isOverdue && !task.completedAt
+    ? 'border-l-4 border-red-500 animate-pulse'
+    : task.dueDate && !task.completedAt
+    ? `border-l-4 ${prioMeta.border}`
+    : ''
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, x: 100 }}
+      transition={{ duration: 0.2 }}
+      layout
+      role="article"
+      aria-label={task.completedAt ? `Completed: ${task.text}` : task.text}
+      className={`p-4 mb-3 rounded-lg ${task.completedAt ? 'bg-green-900/30 opacity-60' : 'bg-gray-800'} ${borderClass}`}
+    >
+      {/* Header row */}
+      <div className="flex items-start gap-3">
+        {/* Completion checkbox */}
+        <button
+          onClick={handleComplete}
+          disabled={!!task.completedAt}
+          aria-label={task.completedAt ? 'Task completed' : 'Mark as complete'}
+          className={`mt-0.5 w-5 h-5 rounded-full border-2 flex-shrink-0 transition-all ${
+            task.completedAt ? 'bg-green-500 border-green-500' : 'border-gray-500 hover:border-blue-400'
+          }`}
+        >
+          {task.completedAt && <span className="text-xs text-white flex items-center justify-center w-full h-full">✓</span>}
+        </button>
+
+        {/* Task text */}
+        <div className="flex-1 min-w-0">
+          <p className={`text-white font-medium break-words ${task.completedAt ? 'line-through text-gray-400' : ''}`}>
+            {task.text}
+          </p>
+
+          {/* Meta row: priority, tags, due date */}
+          <div className="flex flex-wrap gap-1 mt-1 items-center">
+            <span className={`text-xs font-medium ${prioMeta.color}`}>{prioMeta.emoji} {prioMeta.label}</span>
+
+            {(task.tags ?? []).map((tag) => {
+              const def = TAG_DEFINITIONS[tag]
+              if (!def) return null
+              return (
+                <span key={tag} className={`text-xs px-1.5 py-0.5 rounded-full ${def.color} text-white`}>
+                  {def.emoji}
+                </span>
+              )
+            })}
+
+            {dueInfo && (
+              <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                dueInfo.urgent ? 'bg-red-900 text-red-300' : 'bg-gray-700 text-gray-300'
+              }`}>
+                📅 {dueInfo.label} {task.deadlineType === 'hard' ? '🔒' : ''}
+              </span>
+            )}
+
+            {subtasks.length > 0 && (
+              <button
+                onClick={(e) => { e.stopPropagation(); setShowSubtasks((p) => !p) }}
+                className="text-xs text-gray-400 hover:text-gray-200"
+              >
+                📋 {completedSubtaskCount}/{subtasks.length}
+              </button>
+            )}
+
+            {!task.completedAt && totalSeconds > 0 && (
+              <span className="text-xs px-1.5 py-0.5 rounded-full font-mono bg-gray-700 text-gray-400">
+                ⏱ {formatTime(totalSeconds)}
+              </span>
+            )}
+            {task.completedAt && (task.timeSpent || 0) > 0 && (
+              <span className="text-xs px-1.5 py-0.5 rounded-full bg-gray-700/60 text-gray-500 font-mono">
+                ⏱ {formatTime(task.timeSpent)}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Subtask list */}
+      <AnimatePresence>
+        {showSubtasks && subtasks.length > 0 && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="mt-3 ml-8 space-y-1 overflow-hidden"
+          >
+            {subtasks.map((s) => (
+              <div key={s.id} className="flex items-center gap-2">
+                <button
+                  onClick={(e) => handleSubtaskComplete(e, s.id)}
+                  disabled={!!s.completedAt}
+                  className={`w-4 h-4 rounded-full border flex-shrink-0 transition-all ${
+                    s.completedAt ? 'bg-green-500 border-green-500' : 'border-gray-500 hover:border-blue-400'
+                  }`}
+                />
+                <span className={`text-sm ${s.completedAt ? 'line-through text-gray-500' : 'text-gray-300'}`}>
+                  {s.text}
+                </span>
+              </div>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Action buttons */}
+      {!task.completedAt && (
+        <div className="flex gap-2 mt-3 ml-8">
+          <button
+            onClick={(e) => { e.stopPropagation(); onRun?.(task) }}
+            className="px-2 py-1 bg-blue-700 hover:bg-blue-600 text-white rounded text-xs font-medium transition-all"
+          >
+            ▶ Run
+          </button>
+          {subtasks.length === 0 && (
+            <button
+              onClick={handleSplit}
+              className="px-2 py-1 bg-purple-700 text-white rounded text-xs hover:bg-purple-600 transition-colors"
+            >
+              🧩 Split
+            </button>
+          )}
+          {subtasks.length > 0 && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setShowSubtasks((p) => !p) }}
+              className="px-2 py-1 bg-gray-700 text-white rounded text-xs hover:bg-gray-600 transition-colors"
+            >
+              {showSubtasks ? 'Hide' : 'Subtasks'}
+            </button>
+          )}
+          {/* Priority quick-change */}
+          {Object.entries(PRIORITIES).map(([key, meta]) => (
+            <button
+              key={key}
+              onClick={(e) => handlePriorityChange(e, key)}
+              title={`Set ${meta.label}`}
+              className={`text-sm transition-opacity ${task.priority === key ? 'opacity-100' : 'opacity-30 hover:opacity-70'}`}
+            >
+              {meta.emoji}
+            </button>
+          ))}
+          <button
+            onClick={handleDelete}
+            className="ml-auto px-2 py-1 bg-red-800 text-white rounded text-xs hover:bg-red-700 transition-colors"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+    </motion.div>
+  )
+}
+
+export default TaskCard
