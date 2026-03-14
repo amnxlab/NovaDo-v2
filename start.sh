@@ -17,7 +17,7 @@ fi
 echo ""
 echo "⚡  Starting NovaDo..."
 echo "   Data server  →  http://localhost:3001"
-echo "   App          →  http://localhost:5173"
+echo "   App          →  http://localhost:3000"
 echo "   Press Ctrl+C to stop everything."
 echo ""
 
