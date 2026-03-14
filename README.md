@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="pics/Logo.png" alt="NovaDo Logo" width="180"/>
+  <img src="pics/Logo.png" alt="NovaDo Logo" width="300"/>
 </p>
 
 <h1 align="center">NovaDo v2</h1>
@@ -64,8 +64,10 @@ Every feature is intentional:
 
 ## Features at a Glance
 
+<div align="center">
+
 | Module | What it does |
-|--------|-------------|
+|:------:|:------------|
 | 📋 **Tasks** | Create tasks with categories, priorities, skill tags, and time tracking |
 | 🚇 **Metro Timeline** | Fixed right-panel: past stops → current stop → upcoming route |
 | ⚡ **XP & Levels** | Earn XP on every completion; bonuses for early delivery and hard tasks |
@@ -81,6 +83,8 @@ Every feature is intentional:
 | ⏱️ **Focus Mode** | Pomodoro + deep-work timer with ambient soundscapes |
 | 🔔 **Notifications** | Smart center for streaks, achievements, and coaching nudges |
 | 🎨 **Customization** | Color schemes, font sizes, animation intensity, background patterns |
+
+</div>
 
 ---
 
@@ -159,12 +163,16 @@ npm run client    # → Vite dev server on :3000
 
 Your task list is rendered as a **vertical metro line** docked to the right side:
 
+<div align="center">
+
 | Node type | Visual | Meaning |
-|-----------|--------|---------|
+|:---------:|:------:|:-------|
 | Past Station | 🟢 compact row + ↩ | Completed — hover to undo |
 | Current Stop | 🟡 triple-ring pulse + **CURRENT STOP** badge | The task in focus now |
 | Upcoming | ◯ hollow priority-colored node | Queued in priority order |
 | Terminus | ◾ small diamond | End of today's route |
+
+</div>
 
 **Creating a task** — click **+** or use the task input bar. Set title, category, priority, estimated duration, and skill tags.
 
@@ -265,13 +273,17 @@ All entries feed directly into the Analytics **Distraction Analysis** section an
 
 A **living visual knowledge graph** — every course in your roadmaps is a tree:
 
+<div align="center">
+
 | Stage | Symbol | Threshold |
-|-------|--------|-----------|
+|:-----:|:------:|:---------:|
 | Seed | 🌫️ | 0% complete |
 | Sprout | 🌱 | ≥ 5% |
 | Growing | 🌿 | ≥ 40% |
 | Mature | 🌳 | ≥ 75% |
 | Ancient | 🌲 | 100% — course complete |
+
+</div>
 
 Hover any tree to see its name and roadmap. Click to navigate directly.
 
@@ -298,8 +310,10 @@ A **quick-capture buffer** for ideas and tasks that are real, but not ready for 
   <img src="pics/Achievments.png" alt="Achievements" width="720"/>
 </p>
 
+<div align="center">
+
 | Achievement | Trigger |
-|-------------|---------|
+|:-----------:|:-------|
 | First Step 🎯 | Complete your first task |
 | Getting Started 🚀 | 10 tasks completed |
 | Task Master ⚡ | 50 tasks completed |
@@ -312,6 +326,8 @@ A **quick-capture buffer** for ideas and tasks that are real, but not ready for 
 | Level Up 📈 | Reach Level 5 |
 | XP Legend 🏅 | Accumulate 1000 XP |
 
+</div>
+
 Each achievement triggers an animated toast notification and is permanently displayed on the Achievements page.
 
 ---
@@ -322,8 +338,10 @@ Each achievement triggers an animated toast notification and is permanently disp
   <img src="pics/Settings.png" alt="Settings" width="720"/>
 </p>
 
+<div align="center">
+
 | Setting | Options |
-|---------|---------|
+|:-------:|:-------|
 | **Gamification** | Enable / disable XP, levels, and achievements |
 | **Timeline Dock** | Show / hide the Metro right panel |
 | **Focus Mode** | Pomodoro length, break intervals, ambient sounds |
@@ -332,17 +350,23 @@ Each achievement triggers an animated toast notification and is permanently disp
 | **Notifications** | System-level alert preferences |
 | **Data** | Export data, clear history, fresh start |
 
+</div>
+
 ---
 
 ## Keyboard Shortcuts
 
+<div align="center">
+
 | Key | Action |
-|-----|--------|
+|:---:|:------|
 | `T` | Focus the task input bar |
 | `P` | Toggle Pomodoro timer |
 | `D` | Open Distraction Log |
 | `I` | Toggle Parking Lot |
 | `O` | Open Overwhelm modal |
+
+</div>
 
 ---
 

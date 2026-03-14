@@ -35,11 +35,11 @@ function dueBadge(dueDate) {
 // ─── Track line ──────────────────────────────────────────────────────────────
 function TrackLine({ status }) {
   return (
-    <div className="flex justify-center" style={{ width: 24, flexShrink: 0 }}>
+    <div className="flex justify-center" style={{ width: 20, flexShrink: 0 }}>
       <div
         className="w-0.5"
         style={{
-          height: 18,
+          height: 14,
           background: status === 'done'
             ? '#22c55e'
             : status === 'active'
@@ -67,13 +67,13 @@ function PastStation({ task, onUndo }) {
       onMouseLeave={() => setHover(false)}
     >
       {/* Station dot */}
-      <div className="flex flex-col items-center" style={{ width: 24, flexShrink: 0 }}>
-        <div className="w-3 h-3 rounded-full bg-emerald-500 flex items-center justify-center shadow-[0_0_6px_rgba(34,197,94,0.45)]">
-          <div className="w-1 h-1 rounded-full bg-white/80" />
+      <div className="flex flex-col items-center" style={{ width: 20, flexShrink: 0 }}>
+        <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 flex items-center justify-center shadow-[0_0_5px_rgba(34,197,94,0.4)]">
+          <div className="w-0.5 h-0.5 rounded-full bg-white/80" />
         </div>
       </div>
       {/* Text row */}
-      <div className="flex-1 min-w-0 flex items-center gap-1 pl-2 py-0.5">
+      <div className="flex-1 min-w-0 flex items-center gap-1 pl-1.5 py-0.5">
         <p className="text-[11px] text-gray-500 line-through truncate flex-1 leading-tight">{task.text}</p>
         <span className="text-emerald-600 text-[10px] flex-shrink-0">✓</span>
         <AnimatePresence>
@@ -107,7 +107,7 @@ function CurrentStation({ task }) {
       className="flex gap-0 items-start"
     >
       {/* Triple-ring node */}
-      <div className="flex flex-col items-center" style={{ width: 24, flexShrink: 0, paddingTop: 4 }}>
+      <div className="flex flex-col items-center" style={{ width: 20, flexShrink: 0, paddingTop: 3 }}>
         <div className="relative w-5 h-5 flex items-center justify-center">
           <span className="absolute inset-0 rounded-full animate-ping bg-yellow-400/20" />
           <span className="absolute rounded-full animate-ping bg-yellow-500/30"
@@ -116,22 +116,22 @@ function CurrentStation({ task }) {
         </div>
       </div>
       {/* Card */}
-      <div className="flex-1 min-w-0 ml-2 bg-yellow-500/10 border border-yellow-500/40 rounded-xl px-3 py-2.5"
-           style={{ boxShadow: '0 0 16px rgba(234,179,8,0.06)' }}>
-        <div className="flex items-center gap-2 mb-1">
-          <span className="text-[9px] font-black tracking-widest uppercase text-yellow-400 bg-yellow-400/15 px-1.5 py-0.5 rounded-md">
+      <div className="flex-1 min-w-0 ml-1.5 bg-yellow-500/10 border border-yellow-500/40 rounded-lg px-2.5 py-2"
+           style={{ boxShadow: '0 0 12px rgba(234,179,8,0.06)' }}>
+        <div className="flex items-center gap-1.5 mb-0.5">
+          <span className="text-[8px] font-black tracking-widest uppercase text-yellow-400 bg-yellow-400/15 px-1 py-0.5 rounded">
             Current Stop
           </span>
         </div>
-        <p className="text-sm font-semibold text-white leading-tight truncate">{task.text}</p>
-        <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-          <span className={`text-[10px] font-medium ${PRIO_LABEL[task.priority] ?? 'text-gray-400'} capitalize`}>
+        <p className="text-xs font-semibold text-white leading-tight truncate">{task.text}</p>
+        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+          <span className={`text-[9px] font-medium ${PRIO_LABEL[task.priority] ?? 'text-gray-400'} capitalize`}>
             {meta.emoji} {task.priority}
           </span>
           {task.durationMins && (
-            <span className="text-[10px] text-gray-500">{task.durationMins}m</span>
+            <span className="text-[9px] text-gray-500">{task.durationMins}m</span>
           )}
-          {badge && <span className={`text-[10px] font-medium ${badge.cls}`}>{badge.text}</span>}
+          {badge && <span className={`text-[9px] font-medium ${badge.cls}`}>{badge.text}</span>}
         </div>
       </div>
     </motion.div>
@@ -153,20 +153,20 @@ function UpcomingStation({ task, index }) {
       className="flex gap-0 items-start"
     >
       {/* Hollow node */}
-      <div className="flex flex-col items-center" style={{ width: 24, flexShrink: 0, paddingTop: 5 }}>
-        <div className="w-3 h-3 rounded-full border-2 bg-gray-900"
+      <div className="flex flex-col items-center" style={{ width: 20, flexShrink: 0, paddingTop: 4 }}>
+        <div className="w-2.5 h-2.5 rounded-full border-2 bg-gray-900"
              style={{ borderColor: dotClr, opacity: 0.65 }} />
       </div>
       {/* Card */}
-      <div className="flex-1 min-w-0 ml-2 bg-gray-800/50 rounded-xl px-3 py-2"
+      <div className="flex-1 min-w-0 ml-1.5 bg-gray-800/50 rounded-lg px-2.5 py-1.5"
            style={{ borderLeft: `2px solid ${dotClr}50` }}>
-        <p className="text-xs font-medium text-gray-200 leading-tight truncate">{task.text}</p>
-        <div className="flex items-center gap-2 mt-1 flex-wrap">
-          <span className={`text-[10px] ${PRIO_LABEL[task.priority] ?? 'text-gray-500'}`}>{meta.emoji}</span>
+        <p className="text-[11px] font-medium text-gray-200 leading-tight truncate">{task.text}</p>
+        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+          <span className={`text-[9px] ${PRIO_LABEL[task.priority] ?? 'text-gray-500'}`}>{meta.emoji}</span>
           {task.durationMins && (
-            <span className="text-[10px] text-gray-600">{task.durationMins}m</span>
+            <span className="text-[9px] text-gray-600">{task.durationMins}m</span>
           )}
-          {badge && <span className={`text-[10px] font-medium ${badge.cls}`}>{badge.text}</span>}
+          {badge && <span className={`text-[9px] font-medium ${badge.cls}`}>{badge.text}</span>}
         </div>
       </div>
     </motion.div>
@@ -177,12 +177,12 @@ function UpcomingStation({ task, index }) {
 function Terminus() {
   return (
     <div className="flex gap-0 items-center">
-      <div className="flex justify-center" style={{ width: 24, flexShrink: 0 }}>
-        <div className="w-4 h-4 rounded-full border-2 border-gray-700 bg-gray-900 flex items-center justify-center">
-          <div className="w-1.5 h-1.5 rounded-full bg-gray-700" />
+      <div className="flex justify-center" style={{ width: 20, flexShrink: 0 }}>
+        <div className="w-3 h-3 rounded-full border-2 border-gray-700 bg-gray-900 flex items-center justify-center">
+          <div className="w-1 h-1 rounded-full bg-gray-700" />
         </div>
       </div>
-      <p className="ml-2 text-[10px] text-gray-700 tracking-widest uppercase font-semibold">end of route</p>
+      <p className="ml-1.5 text-[9px] text-gray-700 tracking-widest uppercase font-semibold">end of route</p>
     </div>
   )
 }
@@ -240,7 +240,7 @@ const TimelineDock = () => {
         animate={{ x: 0, opacity: 1 }}
         exit={{ x: 320, opacity: 0 }}
         transition={{ type: 'spring', stiffness: 220, damping: 28 }}
-        className="fixed top-16 right-4 z-30 w-64 rounded-2xl shadow-2xl overflow-hidden"
+        className="fixed top-16 right-4 z-30 w-56 rounded-xl shadow-2xl overflow-hidden"
         style={{
           background: 'rgba(7,10,14,0.96)',
           border: '1px solid rgba(255,255,255,0.07)',
@@ -249,10 +249,10 @@ const TimelineDock = () => {
         }}
       >
         {/* ── Header ── */}
-        <div className="px-4 py-3 flex items-center justify-between"
+        <div className="px-3 py-2 flex items-center justify-between"
              style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}>
-          <span className="text-[11px] font-black tracking-widest uppercase text-gray-400">Today's Route</span>
-          <span className="text-[11px] font-bold tabular-nums"
+          <span className="text-[10px] font-black tracking-widest uppercase text-gray-400">Today's Route</span>
+          <span className="text-[10px] font-bold tabular-nums"
                 style={{ color: doneCount > 0 ? '#4ade80' : '#6b7280' }}>
             {doneCount} <span className="text-gray-600">/</span> {totalStops}
             <span className="text-gray-600 font-normal"> stops</span>
@@ -260,7 +260,7 @@ const TimelineDock = () => {
         </div>
 
         {/* ── Route ── */}
-        <div className="px-3 py-3 flex flex-col gap-0 max-h-[70vh] overflow-y-auto"
+        <div className="px-2.5 py-2 flex flex-col gap-0 max-h-[65vh] overflow-y-auto"
              style={{ scrollbarWidth: 'none' }}>
           <AnimatePresence mode="popLayout">
             {/* Past stations */}

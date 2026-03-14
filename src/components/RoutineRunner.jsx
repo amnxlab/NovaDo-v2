@@ -70,7 +70,7 @@ export default function RoutineRunner({ routine, onClose }) {
   const timeProgress = currentStep
     ? (1 - secondsLeft / (currentStep.durationMins * 60)) * 100
     : 100
-  const circumference = 2 * Math.PI * 60
+  const circumference = 2 * Math.PI * 50
 
   if (done) {
     const completedCount = routine.steps.length - skipped.length
@@ -124,12 +124,12 @@ export default function RoutineRunner({ routine, onClose }) {
       className="fixed inset-0 z-50 flex flex-col bg-gray-950"
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800 shrink-0">
-        <div className="flex items-center gap-3">
-          <span className="text-2xl">{routine.emoji}</span>
+      <div className="flex items-center justify-between px-5 py-3 border-b border-gray-800 shrink-0">
+        <div className="flex items-center gap-2.5">
+          <span className="text-xl">{routine.emoji}</span>
           <div>
-            <div className="text-white font-semibold">{routine.name}</div>
-            <div className="text-gray-500 text-sm">
+            <div className="text-white font-semibold text-sm">{routine.name}</div>
+            <div className="text-gray-500 text-xs">
               Step {stepIndex + 1} of {routine.steps.length}
             </div>
             {routine.repeatPattern !== 'daily' && (
@@ -154,23 +154,23 @@ export default function RoutineRunner({ routine, onClose }) {
       </div>
 
       {/* Main step area */}
-      <div className="flex-1 flex flex-col items-center justify-center p-8 overflow-hidden">
+      <div className="flex-1 flex flex-col items-center justify-center p-6 overflow-hidden">
         <AnimatePresence mode="wait">
           <motion.div
             key={stepIndex}
             initial={{ opacity: 0, x: 40 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -40 }}
-            className="text-center max-w-lg w-full"
+            className="text-center max-w-md w-full"
           >
             {/* Circular timer */}
-            <div className="relative w-44 h-44 mx-auto mb-8">
-              <svg className="w-44 h-44 -rotate-90" viewBox="0 0 144 144">
-                <circle cx="72" cy="72" r="60" fill="none" stroke="#1f2937" strokeWidth="10" />
+            <div className="relative w-36 h-36 mx-auto mb-6">
+              <svg className="w-36 h-36 -rotate-90" viewBox="0 0 120 120">
+                <circle cx="60" cy="60" r="50" fill="none" stroke="#1f2937" strokeWidth="8" />
                 <motion.circle
-                  cx="72" cy="72" r="60" fill="none"
+                  cx="60" cy="60" r="50" fill="none"
                   stroke={secondsLeft < 30 ? '#ef4444' : '#3b82f6'}
-                  strokeWidth="10"
+                  strokeWidth="8"
                   strokeLinecap="round"
                   strokeDasharray={circumference}
                   strokeDashoffset={circumference * (1 - timeProgress / 100)}
@@ -178,29 +178,29 @@ export default function RoutineRunner({ routine, onClose }) {
                 />
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className={`text-3xl font-mono font-bold tabular-nums ${secondsLeft < 30 ? 'text-red-400' : 'text-white'}`}>
+                <span className={`text-2xl font-mono font-bold tabular-nums ${secondsLeft < 30 ? 'text-red-400' : 'text-white'}`}>
                   {fmt(secondsLeft)}
                 </span>
-                <span className="text-gray-500 text-xs mt-1">{currentStep.durationMins}m step</span>
+                <span className="text-gray-500 text-[11px] mt-0.5">{currentStep.durationMins}m step</span>
               </div>
             </div>
 
-            <h2 className="text-2xl font-bold text-white mb-2 leading-snug">
+            <h2 className="text-xl font-bold text-white mb-1.5 leading-snug">
               {currentStep.text}
             </h2>
-            <div className="text-yellow-500 text-sm mb-10">+{currentStep.xp} XP on complete</div>
+            <div className="text-yellow-500 text-sm mb-7">+{currentStep.xp} XP on complete</div>
 
             {/* Action buttons */}
-            <div className="flex gap-4 justify-center">
+            <div className="flex gap-3 justify-center">
               <button
                 onClick={() => advance(false)}
-                className="px-8 py-3 bg-green-600 hover:bg-green-500 text-white rounded-xl font-semibold transition-colors text-lg shadow-lg"
+                className="px-7 py-2.5 bg-green-600 hover:bg-green-500 text-white rounded-xl font-semibold transition-colors text-base shadow-lg"
               >
                 ✓ Done
               </button>
               <button
                 onClick={() => advance(true)}
-                className="px-6 py-3 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-gray-200 rounded-xl transition-colors"
+                className="px-5 py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-gray-200 rounded-xl transition-colors text-sm"
               >
                 Skip →
               </button>
@@ -208,7 +208,7 @@ export default function RoutineRunner({ routine, onClose }) {
 
             <button
               onClick={() => setTimerActive((v) => !v)}
-              className="mt-5 text-gray-600 hover:text-gray-400 text-sm transition-colors"
+              className="mt-4 text-gray-600 hover:text-gray-400 text-sm transition-colors"
             >
               {timerActive ? '⏸ Pause timer' : '▶ Resume timer'}
             </button>
