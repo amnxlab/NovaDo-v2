@@ -159,9 +159,9 @@ npm run client    # → Vite dev server on :3000
   <img src="pics/login.png" alt="NovaDo Login" width="720"/>
 </p>
 
----
-
 All your data stored in local database, which gaves your privacy.
+
+---
 
 ### Tasks — Metro Timeline
 
