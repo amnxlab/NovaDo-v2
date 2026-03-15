@@ -4,8 +4,14 @@ import useRoadmapsStore, { LEARNING_MODES, allocatedMins, resolveMode } from '..
 import useXPStore from '../store/xpStore'
 import useTasksStore from '../store/tasksStore'
 import useEmotionStore from '../store/emotionStore'
+import useSettingsStore from '../store/settingsStore'
+import { audioPlayer } from '../utils/audio'
 
-const fmt = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+const fmt = (s) => {
+  const abs = Math.abs(s)
+  const sign = s < 0 ? '+' : ''
+  return `${sign}${Math.floor(abs / 60)}:${String(abs % 60).padStart(2, '0')}`
+}
 const BASE_MODULE_XP = 25
 
 export default function ModuleRunner({ item, onClose }) {
@@ -19,11 +25,19 @@ export default function ModuleRunner({ item, onClose }) {
   const addTask = useTasksStore((s) => s.addTask)
   const completeTask = useTasksStore((s) => s.completeTask)
   const currentEnergy = useEmotionStore((s) => s.currentEnergy)
+  const {
+    soundEnabled,
+    timerAlertTone,
+    timerAlertRepeat,
+    timerAlertIntervalSec,
+    timerAlertVolume,
+  } = useSettingsStore()
 
   const [effectiveMode, setEffectiveMode] = useState(() => resolveMode(module, course, roadmap))
   const [showEnergyBanner, setShowEnergyBanner] = useState(() => currentEnergy !== null && currentEnergy <= 3)
   const [timerActive, setTimerActive] = useState(false)
   const [started, setStarted] = useState(false)
+  const [overtime, setOvertime] = useState(false)
   const [done, setDone] = useState(false)
   const [skipped, setSkipped] = useState(false)
   const [earnedXP, setEarnedXP] = useState(0)
@@ -41,23 +55,53 @@ export default function ModuleRunner({ item, onClose }) {
         return Math.ceil(module.durationMins * mode.multiplier * (1 + mode.buffer))
       })()
       setSecondsLeft(newAllocated * 60)
+      setOvertime(false)
     }
   }, [effectiveMode, module.durationMins, started])
 
   // Countdown
   useEffect(() => {
     if (!timerActive || done) return
-    if (secondsLeft <= 0) { setTimerActive(false); return }
+    if (!overtime && secondsLeft <= 0) {
+      setTimerActive(false)
+      setOvertime(true)
+      return
+    }
     const t = setTimeout(() => setSecondsLeft((s) => s - 1), 1000)
     return () => clearTimeout(t)
-  }, [secondsLeft, timerActive, done])
+  }, [secondsLeft, timerActive, done, overtime])
+
+  useEffect(() => {
+    if (!soundEnabled) {
+      audioPlayer.stopTimerAlert()
+      return
+    }
+
+    if (started && !done && overtime && !timerActive) {
+      audioPlayer.startTimerAlert({
+        tone: timerAlertTone,
+        volume: timerAlertVolume,
+        repeat: timerAlertRepeat,
+        intervalMs: timerAlertIntervalSec * 1000,
+      })
+      return
+    }
+
+    audioPlayer.stopTimerAlert()
+  }, [started, done, secondsLeft, timerActive, soundEnabled, timerAlertTone, timerAlertRepeat, timerAlertIntervalSec, timerAlertVolume])
+
+  useEffect(() => () => {
+    audioPlayer.stopTimerAlert()
+  }, [])
 
   const handleStart = () => {
     setStarted(true)
+    setOvertime(false)
     setTimerActive(true)
   }
 
   const handleComplete = useCallback(() => {
+    audioPlayer.stopTimerAlert()
     setTimerActive(false)
     const modeInfo = LEARNING_MODES[effectiveMode] || LEARNING_MODES.normal
     const momentumBonus = roadmap.momentumMultiplier || 1.0
@@ -94,6 +138,7 @@ export default function ModuleRunner({ item, onClose }) {
   }, [effectiveMode, roadmap, course, module, awardXP, addTask, completeTask, completeModule, unlockAchievement])
 
   const handleSkip = () => {
+    audioPlayer.stopTimerAlert()
     setTimerActive(false)
     setSkipped(true)
     setDone(true)
@@ -204,7 +249,7 @@ export default function ModuleRunner({ item, onClose }) {
             <div className="text-gray-500 text-xs">{roadmap.name}</div>
           </div>
         </div>
-        <button onClick={onClose} className="text-gray-600 hover:text-gray-300 w-8 h-8 flex items-center justify-center rounded hover:bg-gray-800">✕</button>
+        <button onClick={() => { audioPlayer.stopTimerAlert(); onClose() }} className="text-gray-600 hover:text-gray-300 w-8 h-8 flex items-center justify-center rounded hover:bg-gray-800">✕</button>
       </div>
 
       {/* Energy banner */}
@@ -272,6 +317,7 @@ export default function ModuleRunner({ item, onClose }) {
                 {fmt(secondsLeft)}
               </span>
               <span className="text-gray-500 text-xs mt-1">{modeInfo.emoji} {modeInfo.label}</span>
+              {overtime && <span className="text-red-400 text-xs mt-0.5">Overtime</span>}
               {roadmap.momentumMultiplier > 1 && (
                 <span className="text-orange-400 text-xs mt-0.5">🔥 ×{roadmap.momentumMultiplier}</span>
               )}
@@ -311,10 +357,14 @@ export default function ModuleRunner({ item, onClose }) {
 
           {started && (
             <button
-              onClick={() => setTimerActive((v) => !v)}
+              onClick={() => {
+                if (!timerActive) audioPlayer.stopTimerAlert()
+                if (!timerActive && secondsLeft <= 0) setOvertime(true)
+                setTimerActive((v) => !v)
+              }}
               className="mt-4 text-gray-600 hover:text-gray-400 text-sm transition-colors"
             >
-              {timerActive ? '⏸ Pause' : '▶ Resume'}
+              {timerActive ? '⏸ Pause' : overtime ? '▶ Continue' : '▶ Resume'}
             </button>
           )}
         </div>

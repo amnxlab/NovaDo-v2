@@ -5,6 +5,7 @@ import useTasksStore from '../store/tasksStore'
 import useTagsStore from '../store/tagsStore'
 import EmojiPicker from '../components/EmojiPicker'
 import useCustomizationStore from '../store/customizationStore'
+import { audioPlayer } from '../utils/audio'
 
 const PRESET_COLORS = [
   'bg-blue-700', 'bg-teal-700', 'bg-indigo-700', 'bg-rose-700',
@@ -50,8 +51,10 @@ export default function SettingsPage() {
   const {
     soundEnabled, confettiEnabled, gamificationEnabled, timerVisible,
     doNotDisturb, timelineDockVisible,
+    timerAlertTone, timerAlertRepeat, timerAlertIntervalSec, timerAlertVolume,
     toggleSound, toggleConfetti, toggleGamification, toggleTimer,
     toggleDoNotDisturb, toggleTimelineDock,
+    setTimerAlertTone, setTimerAlertRepeat, setTimerAlertIntervalSec, setTimerAlertVolume,
   } = useSettingsStore()
   const { freshStart } = useTasksStore()
   const { tags, addTag, removeTag, resetTags } = useTagsStore()
@@ -96,6 +99,60 @@ export default function SettingsPage() {
             <Toggle label="Show Timer" checked={timerVisible} onChange={toggleTimer} />
             <Toggle label="Timeline Dock" checked={timelineDockVisible} onChange={toggleTimelineDock} description="Due-date sidebar" />
             <Toggle label="Do Not Disturb" checked={doNotDisturb} onChange={toggleDoNotDisturb} description="Mute non-deadline alerts" />
+
+            <div className="pt-2 border-t border-gray-700 space-y-3">
+              <p className="text-xs text-gray-400 uppercase tracking-wider">Timer Alerts</p>
+              <Toggle label="Repeat until acknowledged" checked={timerAlertRepeat} onChange={() => setTimerAlertRepeat(!timerAlertRepeat)} description="Keep playing after timer completes until you start the next phase or respond." />
+
+              <div className="space-y-1">
+                <label className="text-xs text-gray-400">Alert Tone</label>
+                <select
+                  value={timerAlertTone}
+                  onChange={(e) => setTimerAlertTone(e.target.value)}
+                  className="w-full bg-gray-700 text-white text-sm rounded-lg px-3 py-2 outline-none focus:ring-1 focus:ring-purple-500"
+                >
+                  <option value="chime">Chime</option>
+                  <option value="bell">Bell</option>
+                  <option value="digital">Digital</option>
+                  <option value="soft">Soft</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-xs text-gray-400">Repeat Every</label>
+                  <select
+                    value={String(timerAlertIntervalSec)}
+                    onChange={(e) => setTimerAlertIntervalSec(Number(e.target.value))}
+                    className="w-full bg-gray-700 text-white text-sm rounded-lg px-3 py-2 outline-none focus:ring-1 focus:ring-purple-500"
+                  >
+                    <option value="3">3 sec</option>
+                    <option value="5">5 sec</option>
+                    <option value="10">10 sec</option>
+                    <option value="15">15 sec</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs text-gray-400">Volume</label>
+                  <select
+                    value={String(timerAlertVolume)}
+                    onChange={(e) => setTimerAlertVolume(Number(e.target.value))}
+                    className="w-full bg-gray-700 text-white text-sm rounded-lg px-3 py-2 outline-none focus:ring-1 focus:ring-purple-500"
+                  >
+                    <option value="0.08">Low</option>
+                    <option value="0.12">Medium</option>
+                    <option value="0.18">High</option>
+                  </select>
+                </div>
+              </div>
+
+              <button
+                onClick={() => audioPlayer.playTimerEnd({ tone: timerAlertTone, volume: timerAlertVolume })}
+                className="w-full py-2 bg-gray-700 hover:bg-gray-600 text-gray-200 text-sm rounded-lg transition-colors"
+              >
+                Preview Alert Sound
+              </button>
+            </div>
           </div>
         </div>
 

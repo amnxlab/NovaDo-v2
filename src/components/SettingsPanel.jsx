@@ -6,6 +6,7 @@ import useTagsStore from '../store/tagsStore'
 import EmojiPicker from './EmojiPicker'
 import useCustomizationStore from '../store/customizationStore'
 import { DEFAULT_TAGS } from '../utils/autoTagger'
+import { audioPlayer } from '../utils/audio'
 
 const PRESET_COLORS = [
   'bg-blue-700', 'bg-teal-700', 'bg-indigo-700', 'bg-rose-700',
@@ -74,8 +75,10 @@ const SettingsPanel = () => {
   const {
     soundEnabled, confettiEnabled, gamificationEnabled, timerVisible,
     doNotDisturb, timelineDockVisible,
+    timerAlertTone, timerAlertRepeat, timerAlertIntervalSec, timerAlertVolume,
     toggleSound, toggleConfetti, toggleGamification, toggleTimer,
     toggleDoNotDisturb, toggleTimelineDock,
+    setTimerAlertTone, setTimerAlertRepeat, setTimerAlertIntervalSec, setTimerAlertVolume,
   } = useSettingsStore()
   const { freshStart } = useTasksStore()
   const { tags, addTag, removeTag, resetTags } = useTagsStore()
@@ -132,6 +135,66 @@ const SettingsPanel = () => {
               <Toggle label="Show Timer" checked={timerVisible} onChange={toggleTimer} />
               <Toggle label="Timeline Dock" checked={timelineDockVisible} onChange={toggleTimelineDock} description="Due-date sidebar" />
               <Toggle label="Do Not Disturb" checked={doNotDisturb} onChange={toggleDoNotDisturb} description="Mute non-deadline alerts" />
+
+              <div className="border-t border-gray-700 pt-4 space-y-3">
+                <p className="text-xs text-gray-500 font-semibold uppercase tracking-wide">Timer Alerts</p>
+                <Toggle
+                  label="Repeat until acknowledged"
+                  checked={timerAlertRepeat}
+                  onChange={() => setTimerAlertRepeat(!timerAlertRepeat)}
+                  description="Keep repeating the timer tone until you resume or start the next break/work block."
+                />
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">Tone</label>
+                    <select
+                      value={timerAlertTone}
+                      onChange={(e) => setTimerAlertTone(e.target.value)}
+                      className="w-full bg-gray-800 text-white text-xs rounded px-2 py-1.5 outline-none focus:ring-1 focus:ring-purple-500"
+                    >
+                      <option value="chime">Chime</option>
+                      <option value="bell">Bell</option>
+                      <option value="digital">Digital</option>
+                      <option value="soft">Soft</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">Volume</label>
+                    <select
+                      value={String(timerAlertVolume)}
+                      onChange={(e) => setTimerAlertVolume(Number(e.target.value))}
+                      className="w-full bg-gray-800 text-white text-xs rounded px-2 py-1.5 outline-none focus:ring-1 focus:ring-purple-500"
+                    >
+                      <option value="0.08">Low</option>
+                      <option value="0.12">Medium</option>
+                      <option value="0.18">High</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex items-end gap-2">
+                  <div className="flex-1">
+                    <label className="text-xs text-gray-500 mb-1 block">Repeat every</label>
+                    <select
+                      value={String(timerAlertIntervalSec)}
+                      onChange={(e) => setTimerAlertIntervalSec(Number(e.target.value))}
+                      className="w-full bg-gray-800 text-white text-xs rounded px-2 py-1.5 outline-none focus:ring-1 focus:ring-purple-500"
+                    >
+                      <option value="3">3 sec</option>
+                      <option value="5">5 sec</option>
+                      <option value="10">10 sec</option>
+                      <option value="15">15 sec</option>
+                    </select>
+                  </div>
+                  <button
+                    onClick={() => audioPlayer.playTimerEnd({ tone: timerAlertTone, volume: timerAlertVolume })}
+                    className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-200 text-xs rounded transition-colors"
+                  >
+                    Preview
+                  </button>
+                </div>
+              </div>
 
               {/* Tag Manager */}
               <div className="border-t border-gray-700 pt-4">

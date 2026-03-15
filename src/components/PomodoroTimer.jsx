@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import useTimerStore from '../store/timerStore'
 import useSettingsStore from '../store/settingsStore'
@@ -14,7 +14,15 @@ const PomodoroTimer = () => {
     reset,
     tick
   } = useTimerStore()
-  const { timerVisible, soundEnabled } = useSettingsStore()
+  const {
+    timerVisible,
+    soundEnabled,
+    timerAlertTone,
+    timerAlertRepeat,
+    timerAlertIntervalSec,
+    timerAlertVolume,
+  } = useSettingsStore()
+  const [phaseAlertActive, setPhaseAlertActive] = useState(false)
 
   useEffect(() => {
     let interval
@@ -29,11 +37,34 @@ const PomodoroTimer = () => {
   useEffect(() => {
     if (remaining <= 0 && running) {
       if (soundEnabled) {
-        audioPlayer.playTimerEnd()
+        audioPlayer.startTimerAlert({
+          tone: timerAlertTone,
+          volume: timerAlertVolume,
+          repeat: timerAlertRepeat,
+          intervalMs: timerAlertIntervalSec * 1000,
+        })
       }
+      setPhaseAlertActive(true)
       reset()
     }
-  }, [remaining, running, mode, soundEnabled])
+  }, [remaining, running, mode, reset, soundEnabled, timerAlertTone, timerAlertRepeat, timerAlertIntervalSec, timerAlertVolume])
+
+  useEffect(() => {
+    if (!soundEnabled || !timerVisible) {
+      audioPlayer.stopTimerAlert()
+      setPhaseAlertActive(false)
+      return
+    }
+
+    if (phaseAlertActive && running) {
+      audioPlayer.stopTimerAlert()
+      setPhaseAlertActive(false)
+    }
+  }, [running, phaseAlertActive, soundEnabled, timerVisible])
+
+  useEffect(() => () => {
+    audioPlayer.stopTimerAlert()
+  }, [])
 
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60)

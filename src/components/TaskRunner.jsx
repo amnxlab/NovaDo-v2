@@ -10,7 +10,11 @@ import { isPastDue } from '../utils/autoTagger'
 import { audioPlayer } from '../utils/audio'
 import confetti from 'canvas-confetti'
 
-const fmt = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+const fmt = (s) => {
+  const abs = Math.abs(s)
+  const sign = s < 0 ? '+' : ''
+  return `${sign}${Math.floor(abs / 60)}:${String(abs % 60).padStart(2, '0')}`
+}
 
 const BASE_MINS = { urgent: 25, high: 25, medium: 20, low: 15 }
 
@@ -25,7 +29,14 @@ export default function TaskRunner({ task, onClose }) {
   const { awardXP, unlockAchievement, todayCount, focusStreak, streakDays } = useXPStore()
   const { addFocusSession, addDailyStat } = useAnalyticsStore()
   const { addNotification } = useNotificationStore()
-  const { soundEnabled, confettiEnabled } = useSettingsStore()
+  const {
+    soundEnabled,
+    confettiEnabled,
+    timerAlertTone,
+    timerAlertRepeat,
+    timerAlertIntervalSec,
+    timerAlertVolume,
+  } = useSettingsStore()
   const { currentEnergy } = useEmotionStore()
 
   const [mode, setMode] = useState('normal')
@@ -33,6 +44,7 @@ export default function TaskRunner({ task, onClose }) {
   const [done, setDone] = useState(false)
   const [skipped, setSkipped] = useState(false)
   const [timerActive, setTimerActive] = useState(false)
+  const [overtime, setOvertime] = useState(false)
   const [earnedXP, setEarnedXP] = useState(0)
   const [unlockedAchievements, setUnlockedAchievements] = useState([])
 
@@ -45,22 +57,54 @@ export default function TaskRunner({ task, onClose }) {
   const baseMins = task.durationMins ?? (BASE_MINS[task.priority] ?? 20)
   const allocatedMins = Math.round(baseMins * FOCUS_MODES[mode].timeMult)
   const totalSeconds = allocatedMins * 60
-  const [secondsLeft, setSecondsLeft] = useState(totalSeconds)
+  const accumulatedTrackedSeconds = Math.max(0, task.timeSpent || 0)
+  const initialRemainingSeconds = Math.max(0, totalSeconds - accumulatedTrackedSeconds)
+  const [secondsLeft, setSecondsLeft] = useState(initialRemainingSeconds)
+  const currentSessionElapsed = Math.max(0, initialRemainingSeconds - secondsLeft)
 
   // Recalculate timer when mode changes (before start)
   useEffect(() => {
     if (!started) {
-      setSecondsLeft(Math.round(baseMins * FOCUS_MODES[mode].timeMult) * 60)
+      const nextTotalSeconds = Math.round(baseMins * FOCUS_MODES[mode].timeMult) * 60
+      setSecondsLeft(Math.max(0, nextTotalSeconds - accumulatedTrackedSeconds))
+      setOvertime(false)
     }
-  }, [mode, baseMins, started])
+  }, [mode, baseMins, started, accumulatedTrackedSeconds])
 
   // Countdown
   useEffect(() => {
     if (!timerActive || done) return
-    if (secondsLeft <= 0) { setTimerActive(false); return }
+    if (!overtime && secondsLeft <= 0) {
+      setTimerActive(false)
+      setOvertime(true)
+      return
+    }
     const t = setTimeout(() => setSecondsLeft((s) => s - 1), 1000)
     return () => clearTimeout(t)
-  }, [secondsLeft, timerActive, done])
+  }, [secondsLeft, timerActive, done, overtime])
+
+  useEffect(() => {
+    if (!soundEnabled) {
+      audioPlayer.stopTimerAlert()
+      return
+    }
+
+    if (started && !done && overtime && !timerActive) {
+      audioPlayer.startTimerAlert({
+        tone: timerAlertTone,
+        volume: timerAlertVolume,
+        repeat: timerAlertRepeat,
+        intervalMs: timerAlertIntervalSec * 1000,
+      })
+      return
+    }
+
+    audioPlayer.stopTimerAlert()
+  }, [started, done, secondsLeft, timerActive, soundEnabled, timerAlertTone, timerAlertRepeat, timerAlertIntervalSec, timerAlertVolume])
+
+  useEffect(() => () => {
+    audioPlayer.stopTimerAlert()
+  }, [])
 
   // XP preview (for pre-start screen)
   const earlyBonus = task.dueDate ? !isPastDue(task.dueDate) : false
@@ -74,10 +118,27 @@ export default function TaskRunner({ task, onClose }) {
   const handleStart = () => {
     if (!isLockedIn) lockIn(task.id)
     setStarted(true)
+    setOvertime(false)
+    setTimerActive(true)
+  }
+
+  const handlePauseToggle = () => {
+    if (!started) return
+
+    if (timerActive) {
+      setTimerActive(false)
+      if (isLockedIn) lockOut()
+      return
+    }
+
+    audioPlayer.stopTimerAlert()
+    if (!isLockedIn) lockIn(task.id)
+    if (secondsLeft <= 0) setOvertime(true)
     setTimerActive(true)
   }
 
   const handleComplete = useCallback(() => {
+    audioPlayer.stopTimerAlert()
     setTimerActive(false)
     const xp = Math.round(
       calcTaskXP({ priority: task.priority, earlyBonus, subtaskCount: completedSubtaskCount })
@@ -91,7 +152,7 @@ export default function TaskRunner({ task, onClose }) {
     addDailyStat(1, 0, 0)
 
     // Track focus session
-    const elapsed = totalSeconds - secondsLeft
+    const elapsed = currentSessionElapsed
     if (elapsed > 0) addFocusSession(elapsed / 60)
 
     // Achievements
@@ -113,17 +174,19 @@ export default function TaskRunner({ task, onClose }) {
     task, mode, earlyBonus, completedSubtaskCount,
     isLockedIn, lockOut, completeTask, awardXP, addDailyStat, addFocusSession,
     todayCount, focusStreak, streakDays, unlockAchievement,
-    soundEnabled, confettiEnabled, totalSeconds, secondsLeft,
+    soundEnabled, confettiEnabled, currentSessionElapsed,
   ])
 
   const handleSkip = () => {
+    audioPlayer.stopTimerAlert()
     setTimerActive(false)
     if (isLockedIn) lockOut()
     setSkipped(true)
     setDone(true)
   }
 
-  const timeProgress = started ? ((totalSeconds - secondsLeft) / totalSeconds) * 100 : 0
+  const elapsedSeconds = accumulatedTrackedSeconds + currentSessionElapsed
+  const timeProgress = totalSeconds > 0 ? Math.min(100, (elapsedSeconds / totalSeconds) * 100) : 0
   const circumference = 2 * Math.PI * 60
 
   const modeInfo = FOCUS_MODES[mode]
@@ -208,7 +271,7 @@ export default function TaskRunner({ task, onClose }) {
           {prioMeta.emoji} {prioMeta.label}
         </span>
         <button
-          onClick={() => { if (isLockedIn) lockOut(); onClose() }}
+            onClick={() => { audioPlayer.stopTimerAlert(); if (isLockedIn) lockOut(); onClose() }}
           className="text-gray-600 hover:text-gray-300 text-xl leading-none transition-colors"
           aria-label="Close task runner"
         >
@@ -274,6 +337,7 @@ export default function TaskRunner({ task, onClose }) {
               {fmt(secondsLeft)}
             </span>
             <span className="text-gray-500 text-xs mt-1">{modeInfo.emoji} {modeInfo.label}</span>
+            {overtime && <span className="text-red-400 text-xs mt-0.5">Overtime</span>}
           </div>
         </div>
 
@@ -295,7 +359,7 @@ export default function TaskRunner({ task, onClose }) {
             onClick={handleStart}
             className="mt-4 px-10 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-semibold text-lg transition-colors shadow-lg"
           >
-            ▶ Start Session
+            {accumulatedTrackedSeconds > 0 ? '▶ Resume Session' : '▶ Start Session'}
           </button>
         ) : (
           <div className="flex gap-4 justify-center mt-4">
@@ -316,10 +380,10 @@ export default function TaskRunner({ task, onClose }) {
 
         {started && (
           <button
-            onClick={() => setTimerActive((v) => !v)}
+            onClick={handlePauseToggle}
             className="mt-4 text-gray-600 hover:text-gray-400 text-sm transition-colors"
           >
-            {timerActive ? '⏸ Pause' : '▶ Resume'}
+            {timerActive ? '⏸ Pause' : overtime ? '▶ Continue' : '▶ Resume'}
           </button>
         )}
       </div>

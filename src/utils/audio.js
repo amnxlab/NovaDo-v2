@@ -5,6 +5,7 @@ class AudioPlayer {
     this.gainNode = null
     this.ambientSource = null
     this.ambientType = null
+    this.timerAlertIntervalId = null
   }
 
   init() {
@@ -15,52 +16,85 @@ class AudioPlayer {
     }
   }
 
-  playPop() {
+  resumeContext() {
     this.init()
+    if (this.audioContext.state === 'suspended') {
+      this.audioContext.resume()
+    }
+  }
+
+  _playBeep({ type = 'sine', frequency = 880, startAt = 0, duration = 0.25, gain = 0.1 }) {
     const oscillator = this.audioContext.createOscillator()
-    const gain = this.audioContext.createGain()
+    const envelope = this.audioContext.createGain()
+    const startTime = this.audioContext.currentTime + startAt
+    const stopTime = startTime + duration
 
-    oscillator.type = 'sine'
-    oscillator.frequency.setValueAtTime(880, this.audioContext.currentTime)
-    gain.gain.setValueAtTime(0.1, this.audioContext.currentTime)
-    gain.gain.exponentialRampToValueAtTime(0.0001, this.audioContext.currentTime + 0.5)
+    oscillator.type = type
+    oscillator.frequency.setValueAtTime(frequency, startTime)
 
-    oscillator.connect(gain)
-    gain.connect(this.gainNode)
-    oscillator.start()
-    oscillator.stop(this.audioContext.currentTime + 0.5)
+    envelope.gain.setValueAtTime(Math.max(gain, 0.0001), startTime)
+    envelope.gain.exponentialRampToValueAtTime(0.0001, stopTime)
+
+    oscillator.connect(envelope)
+    envelope.connect(this.gainNode)
+    oscillator.start(startTime)
+    oscillator.stop(stopTime)
+  }
+
+  playPop() {
+    this.resumeContext()
+    this._playBeep({ type: 'sine', frequency: 880, duration: 0.5, gain: 0.1 })
   }
 
   playLevelUp() {
-    this.init()
-    const oscillator = this.audioContext.createOscillator()
-    const gain = this.audioContext.createGain()
-
-    oscillator.type = 'sine'
-    oscillator.frequency.setValueAtTime(440, this.audioContext.currentTime)
-    gain.gain.setValueAtTime(0.1, this.audioContext.currentTime)
-    gain.gain.exponentialRampToValueAtTime(0.0001, this.audioContext.currentTime + 1.0)
-
-    oscillator.connect(gain)
-    gain.connect(this.gainNode)
-    oscillator.start()
-    oscillator.stop(this.audioContext.currentTime + 1.0)
+    this.resumeContext()
+    this._playBeep({ type: 'sine', frequency: 440, duration: 1.0, gain: 0.1 })
   }
 
-  playTimerEnd() {
-    this.init()
-    const oscillator = this.audioContext.createOscillator()
-    const gain = this.audioContext.createGain()
+  playTimerEnd({ tone = 'chime', volume = 0.12 } = {}) {
+    this.resumeContext()
 
-    oscillator.type = 'sine'
-    oscillator.frequency.setValueAtTime(1046.5, this.audioContext.currentTime)
-    gain.gain.setValueAtTime(0.1, this.audioContext.currentTime)
-    gain.gain.exponentialRampToValueAtTime(0.0001, this.audioContext.currentTime + 0.8)
+    const patterns = {
+      chime: [
+        { type: 'sine', frequency: 1046.5, startAt: 0, duration: 0.22, gain: volume },
+        { type: 'sine', frequency: 1318.5, startAt: 0.12, duration: 0.35, gain: volume * 0.85 },
+      ],
+      bell: [
+        { type: 'triangle', frequency: 880, startAt: 0, duration: 0.5, gain: volume },
+        { type: 'sine', frequency: 1174.66, startAt: 0.08, duration: 0.8, gain: volume * 0.6 },
+      ],
+      digital: [
+        { type: 'square', frequency: 988, startAt: 0, duration: 0.12, gain: volume * 0.8 },
+        { type: 'square', frequency: 988, startAt: 0.18, duration: 0.12, gain: volume * 0.8 },
+        { type: 'square', frequency: 1318.5, startAt: 0.36, duration: 0.18, gain: volume * 0.75 },
+      ],
+      soft: [
+        { type: 'sine', frequency: 784, startAt: 0, duration: 0.2, gain: volume * 0.75 },
+        { type: 'sine', frequency: 880, startAt: 0.14, duration: 0.26, gain: volume * 0.65 },
+      ],
+    }
 
-    oscillator.connect(gain)
-    gain.connect(this.gainNode)
-    oscillator.start()
-    oscillator.stop(this.audioContext.currentTime + 0.8)
+    for (const step of patterns[tone] ?? patterns.chime) {
+      this._playBeep(step)
+    }
+  }
+
+  startTimerAlert({ tone = 'chime', volume = 0.12, repeat = true, intervalMs = 5000 } = {}) {
+    this.stopTimerAlert()
+    this.playTimerEnd({ tone, volume })
+
+    if (!repeat) return
+
+    this.timerAlertIntervalId = window.setInterval(() => {
+      this.playTimerEnd({ tone, volume })
+    }, intervalMs)
+  }
+
+  stopTimerAlert() {
+    if (this.timerAlertIntervalId) {
+      clearInterval(this.timerAlertIntervalId)
+      this.timerAlertIntervalId = null
+    }
   }
 
   // ── Ambient sounds ────────────────────────────────────────────────────
@@ -76,13 +110,8 @@ class AudioPlayer {
     // Skip if already playing the same type
     if (this.ambientType === type && this.ambientSource) return
 
-    this.init()
+    this.resumeContext()
     this.stopAmbient()
-
-    // Resume suspended context (browser autoplay policy) — fire and forget
-    if (this.audioContext.state === 'suspended') {
-      this.audioContext.resume()
-    }
 
     const source = this.audioContext.createBufferSource()
     source.buffer = this._noiseBuffer()

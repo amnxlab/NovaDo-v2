@@ -10,6 +10,10 @@ const useSettingsStore = create(
       confettiEnabled: true,
       gamificationEnabled: true,
       timerVisible: false,
+      timerAlertTone: 'chime',
+      timerAlertRepeat: true,
+      timerAlertIntervalSec: 5,
+      timerAlertVolume: 0.12,
       doNotDisturb: false,       // mute all notifications except deadline alerts
       autopilotEnabled: false,   // ADHD Autopilot mode
       timelineDockVisible: true, // show timeline dock when tasks have due dates
@@ -21,15 +25,28 @@ const useSettingsStore = create(
       toggleDoNotDisturb: () => set((s) => ({ doNotDisturb: !s.doNotDisturb })),
       toggleAutopilot: () => set((s) => ({ autopilotEnabled: !s.autopilotEnabled })),
       toggleTimelineDock: () => set((s) => ({ timelineDockVisible: !s.timelineDockVisible })),
+      setTimerAlertTone: (timerAlertTone) => set({ timerAlertTone }),
+      setTimerAlertRepeat: (timerAlertRepeat) => set({ timerAlertRepeat }),
+      setTimerAlertIntervalSec: (timerAlertIntervalSec) => set({ timerAlertIntervalSec }),
+      setTimerAlertVolume: (timerAlertVolume) => set({ timerAlertVolume }),
       setActiveView: (view) => set({ activeView: view }),
     }),
     {
       name: 'settings-storage',
       storage: createFileStorage(),
-      version: 2,
+      version: 3,
       migrate: (persisted, version) => {
         if (version < 2) {
-          return { ...persisted, timerVisible: false }
+          persisted = { ...persisted, timerVisible: false }
+        }
+        if (version < 3) {
+          return {
+            ...persisted,
+            timerAlertTone: 'chime',
+            timerAlertRepeat: true,
+            timerAlertIntervalSec: 5,
+            timerAlertVolume: 0.12,
+          }
         }
         return persisted
       },
