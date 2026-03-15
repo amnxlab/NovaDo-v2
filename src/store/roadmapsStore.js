@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { createFileStorage } from '../utils/fileStorage'
 import { nanoid } from 'nanoid'
+import { getTodayDateKey, normalizeDateKey } from '../utils/localDate'
 
 // ── Learning Mode multipliers ─────────────────────────────────────────────────
 export const LEARNING_MODES = {
@@ -57,7 +58,7 @@ const makeRoadmap = ({ name, emoji = '🗺️', description = '', deadline = nul
   emoji,
   description,
   courses: [],
-  deadline,         // 'YYYY-MM-DD'
+  deadline: normalizeDateKey(deadline), // 'YYYY-MM-DD'
   dailyCapMins,
   defaultMode,      // 'fast' | 'normal' | 'slow'
   priority,         // 'low' | 'medium' | 'high' | 'urgent'
@@ -75,13 +76,15 @@ const makeRoadmap = ({ name, emoji = '🗺️', description = '', deadline = nul
   createdAt: new Date().toISOString(),
 })
 
-const todayStr = () => new Date().toISOString().slice(0, 10)
+const todayStr = () => getTodayDateKey()
 
 // ── Store ─────────────────────────────────────────────────────────────────────
 const useRoadmapsStore = create(
   persist(
     (set, get) => ({
       roadmaps: [],
+      _hasHydrated: false,
+      setHasHydrated: (value) => set({ _hasHydrated: value }),
 
       // ── Roadmap CRUD ──────────────────────────────────────────────────────
       addRoadmap: (opts) => {
@@ -94,9 +97,15 @@ const useRoadmapsStore = create(
         set((s) => ({ roadmaps: s.roadmaps.filter((r) => r.id !== id) })),
 
       updateRoadmap: (id, patch) =>
-        set((s) => ({
-          roadmaps: s.roadmaps.map((r) => (r.id === id ? { ...r, ...patch } : r)),
-        })),
+        set((s) => {
+          const nextPatch = { ...patch }
+          if (Object.prototype.hasOwnProperty.call(nextPatch, 'deadline')) {
+            nextPatch.deadline = normalizeDateKey(nextPatch.deadline)
+          }
+          return {
+            roadmaps: s.roadmaps.map((r) => (r.id === id ? { ...r, ...nextPatch } : r)),
+          }
+        }),
 
       setAutoInject: (roadmapId, value) =>
         set((s) => ({
@@ -114,7 +123,7 @@ const useRoadmapsStore = create(
           courseOpts.emoji,
           courseOpts.defaultMode
         )
-        if (courseOpts.deadline) c.deadline = courseOpts.deadline
+        if (courseOpts.deadline) c.deadline = normalizeDateKey(courseOpts.deadline)
         if (courseOpts.prerequisiteCourseIds) c.prerequisiteCourseIds = courseOpts.prerequisiteCourseIds
         if (courseOpts.skills) c.skills = courseOpts.skills
         set((s) => ({
@@ -149,18 +158,24 @@ const useRoadmapsStore = create(
         })),
 
       updateCourse: (roadmapId, courseId, patch) =>
-        set((s) => ({
-          roadmaps: s.roadmaps.map((r) =>
-            r.id === roadmapId
-              ? {
-                  ...r,
-                  courses: r.courses.map((c) =>
-                    c.id === courseId ? { ...c, ...patch } : c
-                  ),
-                }
-              : r
-          ),
-        })),
+        set((s) => {
+          const nextPatch = { ...patch }
+          if (Object.prototype.hasOwnProperty.call(nextPatch, 'deadline')) {
+            nextPatch.deadline = normalizeDateKey(nextPatch.deadline)
+          }
+          return {
+            roadmaps: s.roadmaps.map((r) =>
+              r.id === roadmapId
+                ? {
+                    ...r,
+                    courses: r.courses.map((c) =>
+                      c.id === courseId ? { ...c, ...nextPatch } : c
+                    ),
+                  }
+                : r
+            ),
+          }
+        }),
 
       // ── Module CRUD ───────────────────────────────────────────────────────
       addModule: (roadmapId, courseId, moduleOpts) => {
@@ -377,7 +392,12 @@ const useRoadmapsStore = create(
         return result
       },
     }),
-    { name: 'roadmaps-storage', storage: createFileStorage() }
+    {
+      name: 'roadmaps-storage',
+      storage: createFileStorage(),
+      partialize: (state) => ({ roadmaps: state.roadmaps }),
+      onRehydrateStorage: () => (state) => { state?.setHasHydrated(true) },
+    }
   )
 )
 

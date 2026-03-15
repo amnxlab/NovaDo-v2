@@ -1,3 +1,5 @@
+import { endOfDateKey, getDateKeyFromDate } from './localDate'
+
 /**
  * autoTagger.js
  * Scans task text and returns suggested tags + priority based on keyword rules.
@@ -11,9 +13,8 @@
  */
 export const isPastDue = (dueDateISO) => {
   if (!dueDateISO) return false
-  // Parse the date components directly to avoid UTC offset issues
-  const [y, m, d] = dueDateISO.slice(0, 10).split('-').map(Number)
-  const endOfDueDay = new Date(y, m - 1, d, 23, 59, 59, 999)
+  const endOfDueDay = endOfDateKey(dueDateISO)
+  if (!endOfDueDay) return false
   return new Date() > endOfDueDay
 }
 
@@ -56,10 +57,7 @@ const DATE_EXPRESSIONS = [
 ]
 
 function toLocalDateString(d) {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
+  return getDateKeyFromDate(d)
 }
 
 function nextDayOfWeek(targetDow) {

@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { createFileStorage } from '../utils/fileStorage'
 import { nanoid } from 'nanoid'
+import { endOfDateKey, getTodayDateKey, normalizeDateKey } from '../utils/localDate'
 
 // Priority levels with XP values
 export const PRIORITIES = {
@@ -22,7 +23,7 @@ const makeTask = (text, { priority = 'medium', dueDate = null, deadlineType = 's
   id: nanoid(),
   text,
   priority,
-  dueDate,
+  dueDate: normalizeDateKey(dueDate),
   deadlineType,
   tags,
   subtasks,
@@ -48,8 +49,7 @@ const useTasksStore = create(
       sessionStart: null,
 
       setDailyWins: (taskIds) => {
-        const today = new Date()
-        const date = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`
+        const date = getTodayDateKey()
         set({ dailyWins: { date, taskIds } })
       },
 
@@ -65,7 +65,8 @@ const useTasksStore = create(
           const task = state.tasks.find((t) => t.id === id)
           if (!task || task.completedAt) return {}
           const now = new Date().toISOString()
-          const earlyBonus = task.dueDate ? new Date(now) < new Date(task.dueDate) : false
+          const dueDayEnd = task.dueDate ? endOfDateKey(task.dueDate) : null
+          const earlyBonus = dueDayEnd ? new Date(now) <= dueDayEnd : false
           const updatedTasks = state.tasks.map((t) =>
             t.id === id ? { ...t, completedAt: now, earlyBonus } : t
           )
@@ -88,8 +89,12 @@ const useTasksStore = create(
       },
 
       updateTask: (id, patch) => {
+        const nextPatch = { ...patch }
+        if (Object.prototype.hasOwnProperty.call(nextPatch, 'dueDate')) {
+          nextPatch.dueDate = normalizeDateKey(nextPatch.dueDate)
+        }
         set((state) => ({
-          tasks: state.tasks.map((t) => (t.id === id ? { ...t, ...patch } : t)),
+          tasks: state.tasks.map((t) => (t.id === id ? { ...t, ...nextPatch } : t)),
         }))
       },
 

@@ -8,14 +8,46 @@ import useEmotionStore from '../store/emotionStore'
 import TaskCard from './TaskCard'
 import useTagsStore from '../store/tagsStore'
 import { generateSuggestion } from '../store/aiCoachStore'
+import { compareDateKeys, diffCalendarDays, getTodayDateKey } from '../utils/localDate'
 
 const SORT_OPTIONS = [
+  { value: 'focus',    label: '🎯 Focus'    },
+  { value: 'smart',    label: '📍 Smart'    },
   { value: 'priority', label: '⚡ Priority' },
-  { value: 'due',      label: '📅 Due date' },
   { value: 'created',  label: '🕐 Added'    },
 ]
 
 const priorityOrder = { urgent: 4, high: 3, medium: 2, low: 1 }
+
+const SECTION_META = {
+  overdue: { title: 'Overdue', accent: 'text-red-400', border: 'border-red-900/60' },
+  today: { title: 'Today', accent: 'text-orange-300', border: 'border-orange-900/60' },
+  tomorrow: { title: 'Tomorrow', accent: 'text-yellow-300', border: 'border-yellow-900/60' },
+  upcoming: { title: 'Next Up', accent: 'text-blue-300', border: 'border-blue-900/60' },
+  noDueDate: { title: 'No Deadline', accent: 'text-gray-300', border: 'border-gray-800' },
+}
+
+const FOCUS_SECTION_ORDER = ['overdue', 'today']
+
+function compareByPriorityThenDue(a, b) {
+  const priorityDiff = (priorityOrder[b.priority] ?? 2) - (priorityOrder[a.priority] ?? 2)
+  if (priorityDiff !== 0) return priorityDiff
+
+  const dueDiff = compareDateKeys(a.dueDate, b.dueDate)
+  if (dueDiff !== 0) return dueDiff
+
+  return new Date(b.createdAt) - new Date(a.createdAt)
+}
+
+function getTaskSection(task, today) {
+  if (!task.dueDate) return 'noDueDate'
+
+  const daysUntilDue = diffCalendarDays(task.dueDate, today)
+  if (daysUntilDue < 0) return 'overdue'
+  if (daysUntilDue === 0) return 'today'
+  if (daysUntilDue === 1) return 'tomorrow'
+  return 'upcoming'
+}
 
 const TaskList = ({ onRunTask, onFocusTask, dailyWins }) => {
   const { tasks } = useTasksStore()
@@ -25,29 +57,54 @@ const TaskList = ({ onRunTask, onFocusTask, dailyWins }) => {
   const { currentMood, currentEnergy } = useEmotionStore()
   const { tags: TAG_DEFINITIONS } = useTagsStore()
 
-  const [sortBy, setSortBy] = useState('priority')
+  const [sortBy, setSortBy] = useState('focus')
   const [filterPriority, setFilterPriority] = useState(null) // null = all
   const [filterTag, setFilterTag] = useState(null)
   const [showCompleted, setShowCompleted] = useState(false)
+  const today = getTodayDateKey()
 
   const activeTasks = useMemo(() => {
     let list = tasks.filter((t) => !t.completedAt)
     if (filterPriority) list = list.filter((t) => t.priority === filterPriority)
     if (filterTag) list = list.filter((t) => (t.tags ?? []).includes(filterTag))
-    if (sortBy === 'priority') {
-      list = [...list].sort((a, b) => (priorityOrder[b.priority] ?? 2) - (priorityOrder[a.priority] ?? 2))
-    } else if (sortBy === 'due') {
+    if (sortBy === 'focus') {
+      list = list.filter((t) => t.dueDate && compareDateKeys(t.dueDate, today) <= 0)
       list = [...list].sort((a, b) => {
-        if (!a.dueDate && !b.dueDate) return 0
-        if (!a.dueDate) return 1
-        if (!b.dueDate) return -1
-        return new Date(a.dueDate) - new Date(b.dueDate)
+        const dueDiff = compareDateKeys(a.dueDate, b.dueDate)
+        if (dueDiff !== 0) return dueDiff
+        return (priorityOrder[b.priority] ?? 0) - (priorityOrder[a.priority] ?? 0)
       })
+    } else if (sortBy === 'priority' || sortBy === 'smart') {
+      list = [...list].sort(compareByPriorityThenDue)
     } else {
       list = [...list].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
     }
     return list
-  }, [tasks, sortBy, filterPriority, filterTag])
+  }, [tasks, sortBy, filterPriority, filterTag, today])
+
+  const activeTaskSections = useMemo(() => {
+    if (sortBy !== 'smart' && sortBy !== 'focus') return []
+
+    const buckets = {
+      overdue: [],
+      today: [],
+      tomorrow: [],
+      upcoming: [],
+      noDueDate: [],
+    }
+
+    for (const task of activeTasks) {
+      buckets[getTaskSection(task, today)].push(task)
+    }
+
+    const orderedKeys = sortBy === 'focus'
+      ? FOCUS_SECTION_ORDER
+      : ['overdue', 'today', 'tomorrow', 'upcoming', 'noDueDate']
+
+    return orderedKeys
+      .map((key) => ({ key, items: buckets[key], meta: SECTION_META[key] }))
+      .filter((section) => section.items.length > 0)
+  }, [activeTasks, sortBy, today])
 
   const completedTasks = useMemo(
     () => tasks.filter((t) => t.completedAt).sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt)),
@@ -132,7 +189,31 @@ const TaskList = ({ onRunTask, onFocusTask, dailyWins }) => {
 
       <AnimatePresence mode="popLayout">
         {activeTasks.length > 0 ? (
-          activeTasks.map((task) => <TaskCard key={task.id} task={task} onRun={onRunTask} onFocus={onFocusTask} dailyWins={dailyWins} />)
+          sortBy === 'smart' || sortBy === 'focus' ? (
+            <div className="space-y-4">
+              {activeTaskSections.map((section) => (
+                <motion.div
+                  key={section.key}
+                  layout
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className={`rounded-xl border ${section.meta.border} bg-gray-900/30 p-3`}
+                >
+                  <div className="mb-3 flex items-center justify-between">
+                    <h3 className={`text-sm font-semibold ${section.meta.accent}`}>{section.meta.title}</h3>
+                    <span className="text-xs text-gray-500">{section.items.length}</span>
+                  </div>
+                  <div>
+                    {section.items.map((task) => (
+                      <TaskCard key={task.id} task={task} onRun={onRunTask} onFocus={onFocusTask} dailyWins={dailyWins} />
+                    ))}
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          ) : (
+            activeTasks.map((task) => <TaskCard key={task.id} task={task} onRun={onRunTask} onFocus={onFocusTask} dailyWins={dailyWins} />)
+          )
         ) : (
           <motion.div
             initial={{ opacity: 0 }}

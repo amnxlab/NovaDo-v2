@@ -1,4 +1,5 @@
 import { allocatedMins, resolveMode } from '../store/roadmapsStore'
+import { compareDateKeys, diffCalendarDays, getDateKeyFromDate, parseDateKey } from './localDate'
 
 /**
  * Topological sort of modules with prerequisite support.
@@ -35,16 +36,10 @@ function topoSort(nodes, getPrereqs) {
  *   conflicts:   [{ roadmapId, courseId, moduleId, title, deadline, scheduledDate, message }]
  */
 export function computeSchedule(roadmaps, startDate = null, globalCapMins = 0) {
-  const start = startDate ? new Date(startDate) : new Date()
+  const start = startDate ? (parseDateKey(startDate) ?? new Date(startDate)) : new Date()
   start.setHours(0, 0, 0, 0)
 
-  // Use local date parts to avoid UTC offset shifting the date (e.g. UTC+3 midnight → prev day in UTC)
-  const dateKey = (d) => {
-    const y = d.getFullYear()
-    const m = String(d.getMonth() + 1).padStart(2, '0')
-    const day = String(d.getDate()).padStart(2, '0')
-    return `${y}-${m}-${day}`
-  }
+  const dateKey = (d) => getDateKeyFromDate(d)
   const addDays = (d, n) => { const r = new Date(d); r.setDate(r.getDate() + n); return r }
 
   // dailyUsed: Map<'YYYY-MM-DD', number> — total mins scheduled that day across all roadmaps
@@ -69,7 +64,7 @@ export function computeSchedule(roadmaps, startDate = null, globalCapMins = 0) {
     if (!a.deadline && !b.deadline) return 0
     if (!a.deadline) return 1
     if (!b.deadline) return -1
-    return new Date(a.deadline) - new Date(b.deadline)
+    return compareDateKeys(a.deadline, b.deadline)
   })
 
   for (const roadmap of sortedRoadmaps) {
@@ -104,9 +99,8 @@ export function computeSchedule(roadmaps, startDate = null, globalCapMins = 0) {
     // the user's configured cap isn't enough to finish on time.
     let effectiveDailyCap = roadmapCap
     if (roadmap.deadline && unlockedModuleQueue.length > 0) {
-      const deadlineDate = new Date(roadmap.deadline)
-      deadlineDate.setHours(0, 0, 0, 0)
-      const availableDays = Math.max(1, Math.round((deadlineDate - start) / 86400000) + 1)
+      const deadlineDate = parseDateKey(roadmap.deadline)
+      const availableDays = Math.max(1, diffCalendarDays(deadlineDate, start) + 1)
       const totalMins = unlockedModuleQueue.reduce(
         (sum, { module: m, course: c }) => sum + allocatedMins(m, c, roadmap),
         0

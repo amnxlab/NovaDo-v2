@@ -3,14 +3,9 @@ import { motion, AnimatePresence } from 'framer-motion'
 import useRoadmapsStore, { LEARNING_MODES } from '../store/roadmapsStore'
 import RoadmapDetail from './RoadmapDetail'
 import EmojiPicker from './EmojiPicker'
+import { compareDateKeys, diffCalendarDays, getTodayDateKey } from '../utils/localDate'
 
-const todayStr = () => {
-  const d = new Date()
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
-}
+const todayStr = () => getTodayDateKey()
 
 // Path level: every 200 XP = 1 level
 const pathLevel = (xp = 0) => ({ level: Math.floor(xp / 200) + 1, progress: xp % 200, next: 200 })
@@ -184,17 +179,15 @@ function RoadmapCard({ roadmap, onOpen }) {
 
   const { total, done, pct } = getRoadmapProgress(roadmap.id)
   const td = todayStr()
-  const isOverdue = roadmap.deadline && roadmap.deadline < td && pct < 100
+  const isOverdue = roadmap.deadline && compareDateKeys(roadmap.deadline, td) < 0 && pct < 100
   const daysLeft = roadmap.deadline
-    ? Math.ceil((new Date(roadmap.deadline) - new Date(td)) / 86400000)
+    ? diffCalendarDays(roadmap.deadline, td)
     : null
 
   // Pace check: are we on schedule?
   let paceStatus = null // 'ahead' | 'behind' | 'on'
   if (roadmap.deadline && total > 0 && pct < 100) {
-    const totalDays = Math.max(1, Math.ceil(
-      (new Date(roadmap.deadline) - new Date(roadmap.createdAt)) / 86400000
-    ))
+    const totalDays = Math.max(1, diffCalendarDays(roadmap.deadline, roadmap.createdAt))
     const daysPassed = Math.max(0, totalDays - (daysLeft ?? 0))
     const expectedPct = Math.min(100, Math.round((daysPassed / totalDays) * 100))
     if (pct >= expectedPct + 5) paceStatus = 'ahead'

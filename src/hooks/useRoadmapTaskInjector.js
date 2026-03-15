@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import useRoadmapsStore, { allocatedMins } from '../store/roadmapsStore'
 import useTasksStore from '../store/tasksStore'
+import { getTodayDateKey } from '../utils/localDate'
 
 /**
  * Automatically creates a medium-priority task for every roadmap module
@@ -11,12 +12,16 @@ import useTasksStore from '../store/tasksStore'
  */
 export default function useRoadmapTaskInjector() {
   const roadmaps = useRoadmapsStore((s) => s.roadmaps)
+  const roadmapsHydrated = useRoadmapsStore((s) => s._hasHydrated)
   const updateModule = useRoadmapsStore((s) => s.updateModule)
   const addTask = useTasksStore((s) => s.addTask)
   const tasks = useTasksStore((s) => s.tasks)
+  const tasksHydrated = useTasksStore((s) => s._hasHydrated)
 
   useEffect(() => {
-    const today = new Date().toISOString().slice(0, 10)
+    if (!roadmapsHydrated || !tasksHydrated) return
+
+    const today = getTodayDateKey()
 
     for (const roadmap of roadmaps) {
       if (!roadmap.autoInjectTasks) continue
@@ -26,19 +31,35 @@ export default function useRoadmapTaskInjector() {
           if (module.scheduledDate !== today) continue
           if (module.completedAt) continue
 
-          // Check if the existing taskId still points to a live task
-          const existingTask = module.taskId
-            ? tasks.find((t) => t.id === module.taskId && !t.completedAt)
-            : null
+          const generatedTaskText = `📚 ${module.title} — ${course.name}`
+          const expectedPriority = roadmap.priority || 'medium'
 
-          if (existingTask) continue // already has an active task
+          const existingTask = tasks.find((task) => {
+            if (task.completedAt) return false
+            if (module.taskId && task.id === module.taskId) return true
+
+            return (
+              task.text === generatedTaskText &&
+              task.dueDate === today &&
+              task.priority === expectedPriority &&
+              (task.tags ?? []).includes('roadmap') &&
+              (task.tags ?? []).includes(roadmap.name)
+            )
+          })
+
+          if (existingTask) {
+            if (module.taskId !== existingTask.id) {
+              updateModule(roadmap.id, course.id, module.id, { taskId: existingTask.id })
+            }
+            continue
+          }
 
           // Create the task — store the allocated study time (not raw video minutes)
           // so TaskRunner uses the same duration the roadmap displays.
           const taskId = addTask(
-            `📚 ${module.title} — ${course.name}`,
+            generatedTaskText,
             {
-              priority: roadmap.priority || 'medium',
+              priority: expectedPriority,
               dueDate: today,
               tags: ['roadmap', roadmap.name],
               durationMins: module.durationMins
@@ -54,8 +75,6 @@ export default function useRoadmapTaskInjector() {
         }
       }
     }
-    // tasks is intentionally excluded from deps to avoid infinite loop
-    // (adding a task mutates tasks, which would re-trigger)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roadmaps, addTask, updateModule])
+  }, [roadmaps, roadmapsHydrated, tasksHydrated, addTask, updateModule])
 }

@@ -12,10 +12,11 @@ import { motion, AnimatePresence } from 'framer-motion'
 import useTasksStore, { PRIORITIES } from '../store/tasksStore'
 import useSettingsStore from '../store/settingsStore'
 import useXPStore from '../store/xpStore'
+import { compareDateKeys, diffCalendarDays, getDateKeyFromDate, getTodayDateKey } from '../utils/localDate'
 
 // ─── helpers ────────────────────────────────────────────────────────────────
-const todayStr = () => new Date().toISOString().slice(0, 10)
-const isToday  = (iso) => iso && iso.slice(0, 10) === todayStr()
+const todayStr = () => getTodayDateKey()
+const isToday  = (iso) => iso && getDateKeyFromDate(iso) === todayStr()
 const PRIORITY_ORDER = { urgent: 4, high: 3, medium: 2, low: 1 }
 
 const PRIO_DOT   = { urgent: '#a78bfa', high: '#f87171', medium: '#fbbf24', low: '#4ade80' }
@@ -23,9 +24,7 @@ const PRIO_LABEL = { urgent: 'text-purple-400', high: 'text-red-400', medium: 't
 
 function dueBadge(dueDate) {
   if (!dueDate) return null
-  const now = new Date(); now.setHours(0, 0, 0, 0)
-  const [y, m, d] = dueDate.slice(0, 10).split('-').map(Number)
-  const days = Math.round((new Date(y, m - 1, d) - now) / 86400000)
+  const days = diffCalendarDays(dueDate, new Date())
   if (days < 0)   return { text: `${Math.abs(days)}d overdue`, cls: 'text-red-400' }
   if (days === 0) return { text: 'due today',  cls: 'text-orange-400' }
   if (days === 1) return { text: 'tomorrow',   cls: 'text-yellow-400' }
@@ -215,10 +214,10 @@ const TimelineDock = () => {
         if (t.completedAt) return false
         if (t.id === lockedTaskId) return false
         if (!t.dueDate) return false
-        return t.dueDate >= today
+        return compareDateKeys(t.dueDate, today) <= 0
       })
       .sort((a, b) => {
-        const dd = new Date(a.dueDate) - new Date(b.dueDate)
+        const dd = compareDateKeys(a.dueDate, b.dueDate)
         return dd !== 0 ? dd : (PRIORITY_ORDER[b.priority] ?? 0) - (PRIORITY_ORDER[a.priority] ?? 0)
       })
 

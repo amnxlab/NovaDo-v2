@@ -1,6 +1,62 @@
 import { getTokenFromStore } from '../store/authStore'
 
 const API_BASE = '/api/store'
+const STORAGE_META_KEY = '__storageMeta'
+const STORAGE_CLIENT_ID_KEY = '__novado_storage_client_id'
+
+function getStorageClientId() {
+  let clientId = localStorage.getItem(STORAGE_CLIENT_ID_KEY)
+  if (!clientId) {
+    clientId = `client_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
+    localStorage.setItem(STORAGE_CLIENT_ID_KEY, clientId)
+  }
+  return clientId
+}
+
+function withStorageMeta(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return value
+
+  return {
+    ...value,
+    [STORAGE_META_KEY]: {
+      updatedAt: Date.now(),
+      clientId: getStorageClientId(),
+    },
+  }
+}
+
+function stripStorageMeta(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return value
+  const { [STORAGE_META_KEY]: _storageMeta, ...rest } = value
+  return rest
+}
+
+function getUpdatedAt(value) {
+  return value?.[STORAGE_META_KEY]?.updatedAt ?? 0
+}
+
+function parseStoredValue(raw) {
+  if (!raw) return null
+  try {
+    return JSON.parse(raw)
+  } catch {
+    return null
+  }
+}
+
+function chooseNewestValue(localValue, serverValue) {
+  if (!localValue) return serverValue
+  if (!serverValue) return localValue
+
+  const localUpdatedAt = getUpdatedAt(localValue)
+  const serverUpdatedAt = getUpdatedAt(serverValue)
+
+  if (localUpdatedAt === 0 && serverUpdatedAt === 0) {
+    return serverValue
+  }
+
+  return localUpdatedAt >= serverUpdatedAt ? localValue : serverValue
+}
 
 function authHeaders() {
   const token = getTokenFromStore()
@@ -28,6 +84,8 @@ export function createFileStorage() {
      */
     getItem: async (name) => {
       const token = getTokenFromStore()
+      const localValue = parseStoredValue(localStorage.getItem(name))
+      let serverValue = null
 
       if (token) {
         try {
@@ -35,26 +93,23 @@ export function createFileStorage() {
             headers: authHeaders(),
           })
           if (res.ok) {
-            const serverData = await res.json()
-            if (serverData !== null) {
-              // Keep localStorage warm as a session-level cache
-              localStorage.setItem(name, JSON.stringify(serverData))
-              return serverData // Already a parsed StorageValue object
-            }
+            serverValue = await res.json()
           }
         } catch {
           // Server unreachable — fall through to localStorage cache
         }
       }
 
-      // Not logged in, or server fetch failed — use localStorage cache
-      const raw = localStorage.getItem(name)
-      if (!raw) return null
-      try {
-        return JSON.parse(raw) // Parse the stored JSON string → StorageValue object
-      } catch {
-        return null
+      const chosenValue = chooseNewestValue(localValue, serverValue)
+      if (chosenValue !== null) {
+        localStorage.setItem(name, JSON.stringify(chosenValue))
+        if (token && chosenValue === localValue && localValue !== serverValue) {
+          debouncedSave(name, JSON.stringify(localValue))
+        }
+        return stripStorageMeta(chosenValue)
       }
+
+      return null
     },
 
     /**
@@ -62,7 +117,8 @@ export function createFileStorage() {
      * We must JSON.stringify it before storing in localStorage or sending to server.
      */
     setItem: (name, value) => {
-      const serialized = JSON.stringify(value)
+      const valueWithMeta = withStorageMeta(value)
+      const serialized = JSON.stringify(valueWithMeta)
 
       // 1. Write to localStorage immediately (fast, synchronous)
       localStorage.setItem(name, serialized)
