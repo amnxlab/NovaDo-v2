@@ -209,12 +209,19 @@ const TimelineDock = () => {
       ? (tasks.find((t) => t.id === lockedTaskId) ?? null)
       : null
 
+    const hasOverdue = tasks.some(
+      (t) => !t.completedAt && t.dueDate && compareDateKeys(t.dueDate, today) < 0
+    )
+
     const pendingList = tasks
       .filter((t) => {
         if (t.completedAt) return false
         if (t.id === lockedTaskId) return false
         if (!t.dueDate) return false
-        return compareDateKeys(t.dueDate, today) <= 0
+        const diff = compareDateKeys(t.dueDate, today)
+        if (diff > 0) return false
+        if (diff === 0 && hasOverdue) return false
+        return true
       })
       .sort((a, b) => {
         const dd = compareDateKeys(a.dueDate, b.dueDate)

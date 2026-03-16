@@ -98,7 +98,7 @@ const TaskList = ({ onRunTask, onFocusTask, dailyWins }) => {
     }
 
     const orderedKeys = sortBy === 'focus'
-      ? FOCUS_SECTION_ORDER
+      ? (buckets.overdue.length > 0 ? ['overdue'] : FOCUS_SECTION_ORDER)
       : ['overdue', 'today', 'tomorrow', 'upcoming', 'noDueDate']
 
     return orderedKeys

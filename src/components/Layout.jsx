@@ -62,7 +62,8 @@ export default function Layout() {
 
   // Emotion tracker
   const [showEmotionTracker, setShowEmotionTracker] = useState(false)
-  const { checkpointCount, checkpointDate, setCheckpoint } = useEmotionStore()
+  const { checkpointCount, checkpointDate, setCheckpoint, _hasHydrated: emotionHydrated } = useEmotionStore()
+  const xpHydrated = useXPStore((s) => s._hasHydrated)
 
   // Daily Wins gate — show if not set today
   const todayStr = (() => {
@@ -85,8 +86,10 @@ export default function Layout() {
     root.setAttribute('data-high-contrast', String(highContrast))
   }, [colorScheme, fontSize, animationIntensity, backgroundPattern, highContrast])
 
-  // Emotion check every 3 completions — checkpoint persisted to prevent replay on reload
+  // Emotion check every 3 completions — checkpoint persisted to prevent replay on reload.
+  // Wait until both stores have hydrated so we read the real persisted checkpointCount.
   useEffect(() => {
+    if (!emotionHydrated || !xpHydrated) return
     if (todayCount > 0 && todayCount % 3 === 0) {
       const alreadyShown = checkpointDate === todayStr && checkpointCount >= todayCount
       if (!alreadyShown) {
@@ -94,7 +97,7 @@ export default function Layout() {
         setShowEmotionTracker(true)
       }
     }
-  }, [todayCount, checkpointCount, checkpointDate, todayStr, setCheckpoint])
+  }, [todayCount, checkpointCount, checkpointDate, todayStr, setCheckpoint, emotionHydrated, xpHydrated])
 
   // Global keyboard shortcuts
   useEffect(() => {

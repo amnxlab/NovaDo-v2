@@ -171,6 +171,8 @@ const useXPStore = create(
       streakDays: 0,
       todayCount: 0,
       lastActiveDate: null,
+      _hasHydrated: false,
+      setHasHydrated: (value) => set({ _hasHydrated: value }),
       focusStreak: 0,
       focusStreakStart: null,
       taskChains: 0,
@@ -290,10 +292,11 @@ const useXPStore = create(
     {
       name: 'xp-storage',
       storage: createFileStorage(),
+      onRehydrateStorage: () => (state) => { state?.setHasHydrated(true) },
       // Do NOT persist ephemeral display fields — prevents replay on reload
       partialize: (state) => {
         // eslint-disable-next-line no-unused-vars
-        const { recentXPGain, lastUnlockedAchievement, ...rest } = state
+        const { recentXPGain, lastUnlockedAchievement, _hasHydrated, setHasHydrated, ...rest } = state
         return rest
       },
     }

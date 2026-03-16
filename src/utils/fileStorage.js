@@ -2,20 +2,18 @@ import { getTokenFromStore } from '../store/authStore'
 
 const API_BASE = '/api/store'
 const STORAGE_META_KEY = '__storageMeta'
-const STORAGE_CLIENT_ID_KEY = '__novado_storage_client_id'
 
-function getStorageClientId() {
-  let clientId = localStorage.getItem(STORAGE_CLIENT_ID_KEY)
-  if (!clientId) {
-    clientId = `client_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
-    localStorage.setItem(STORAGE_CLIENT_ID_KEY, clientId)
-  }
-  return clientId
+// Keep a lightweight per-tab client id (no localStorage dependency)
+let storageClientId = `client_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
+const getStorageClientId = () => storageClientId
+
+const authHeaders = () => {
+  const token = getTokenFromStore()
+  return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
-function withStorageMeta(value) {
+const withStorageMeta = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return value
-
   return {
     ...value,
     [STORAGE_META_KEY]: {
@@ -25,66 +23,43 @@ function withStorageMeta(value) {
   }
 }
 
-function stripStorageMeta(value) {
+const stripStorageMeta = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return value
   const { [STORAGE_META_KEY]: _storageMeta, ...rest } = value
   return rest
 }
 
-function getUpdatedAt(value) {
-  return value?.[STORAGE_META_KEY]?.updatedAt ?? 0
-}
-
-function parseStoredValue(raw) {
-  if (!raw) return null
+const readLocalForMigration = (name) => {
   try {
+    const raw = localStorage.getItem(name)
+    if (!raw) return null
     return JSON.parse(raw)
   } catch {
     return null
   }
 }
 
-function chooseNewestValue(localValue, serverValue) {
-  if (!localValue) return serverValue
-  if (!serverValue) return localValue
-
-  const localUpdatedAt = getUpdatedAt(localValue)
-  const serverUpdatedAt = getUpdatedAt(serverValue)
-
-  if (localUpdatedAt === 0 && serverUpdatedAt === 0) {
-    return serverValue
+const clearLocal = (name) => {
+  try {
+    localStorage.removeItem(name)
+  } catch {
+    // ignore
   }
-
-  return localUpdatedAt >= serverUpdatedAt ? localValue : serverValue
-}
-
-function authHeaders() {
-  const token = getTokenFromStore()
-  return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
 /**
- * createFileStorage — returns a Zustand PersistStorage-compatible adapter.
- *
- * Zustand's persist middleware uses the PersistStorage interface where:
- *   - getItem(name)          → returns StorageValue { state, version } | null  (or Promise thereof)
- *   - setItem(name, value)   → receives StorageValue { state, version } (an object, NOT a string)
- *   - removeItem(name)       → removes the stored data
- *
- * We store data as JSON strings on both localStorage (fast cache) and the
- * Express server (durable). We must JSON.stringify/parse at our layer.
+ * createFileStorage - server-first persistence with optional one-time migration
+ * from old localStorage entries. No new data is written to localStorage.
  */
 export function createFileStorage() {
   return {
     /**
-     * Async getItem — Zustand awaits this Promise before hydrating the store.
-     * Server is always preferred over localStorage when the user is logged in.
-     * Falls back to localStorage cache if the server is unreachable.
-     * Returns a parsed StorageValue object (or null), NOT a raw JSON string.
+    * Async getItem - fetches from server; if missing but a legacy local copy
+    * exists, uploads it once to the server (when authenticated) and returns it.
      */
     getItem: async (name) => {
       const token = getTokenFromStore()
-      const localValue = parseStoredValue(localStorage.getItem(name))
+      const legacyLocal = readLocalForMigration(name)
       let serverValue = null
 
       if (token) {
@@ -96,39 +71,49 @@ export function createFileStorage() {
             serverValue = await res.json()
           }
         } catch {
-          // Server unreachable — fall through to localStorage cache
+          // server unreachable — fall through
         }
       }
 
-      const chosenValue = chooseNewestValue(localValue, serverValue)
-      if (chosenValue !== null) {
-        localStorage.setItem(name, JSON.stringify(chosenValue))
-        if (token && chosenValue === localValue && localValue !== serverValue) {
-          debouncedSave(name, JSON.stringify(localValue))
-        }
-        return stripStorageMeta(chosenValue)
+      if (serverValue !== null && serverValue !== undefined) {
+        clearLocal(name)
+        return stripStorageMeta(serverValue)
       }
 
+      if (token && legacyLocal) {
+        // One-time migrate legacy local data to server, then stop using local
+        const payload = JSON.stringify(withStorageMeta(legacyLocal))
+        debouncedSave(name, payload)
+        clearLocal(name)
+        return stripStorageMeta(legacyLocal)
+      }
+
+      // If not authenticated or nothing to fetch
+      clearLocal(name)
       return null
     },
 
     /**
-     * setItem — Zustand calls this with a StorageValue { state, version } object.
-     * We must JSON.stringify it before storing in localStorage or sending to server.
+     * setItem — write to server only (debounced). Requires an auth token.
      */
     setItem: (name, value) => {
-      const valueWithMeta = withStorageMeta(value)
-      const serialized = JSON.stringify(valueWithMeta)
-
-      // 1. Write to localStorage immediately (fast, synchronous)
-      localStorage.setItem(name, serialized)
-
-      // 2. Persist to server (durable) — debounced to avoid hammering on rapid changes
+      clearLocal(name)
+      const token = getTokenFromStore()
+      if (!token) {
+        console.warn('Persist skipped: no auth token available')
+        return
+      }
+      const serialized = JSON.stringify(withStorageMeta(value))
       debouncedSave(name, serialized)
     },
 
+    /**
+     * removeItem — delete from server and clear any legacy local copy.
+     */
     removeItem: (name) => {
-      localStorage.removeItem(name)
+      clearLocal(name)
+      const token = getTokenFromStore()
+      if (!token) return
       fetch(`${API_BASE}/${encodeURIComponent(name)}`, {
         method: 'DELETE',
         headers: authHeaders(),
@@ -152,12 +137,12 @@ function debouncedSave(name, serialized) {
       fetch(`${API_BASE}/${encodeURIComponent(name)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: serialized, // JSON string of the StorageValue { state, version } object
+        body: serialized,
       }).catch(() => {
-        // Server down — data is still in localStorage cache
+        // ignore; will try again on next state change
       })
     }
-  }, 500)
+  }, 300)
 
   pendingWrites.set(name, timer)
 }
