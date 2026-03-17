@@ -27,8 +27,6 @@ const SECTION_META = {
   noDueDate: { title: 'No Deadline', accent: 'text-gray-300', border: 'border-gray-800' },
 }
 
-const FOCUS_SECTION_ORDER = ['overdue', 'today']
-
 function compareByPriorityThenDue(a, b) {
   const priorityDiff = (priorityOrder[b.priority] ?? 2) - (priorityOrder[a.priority] ?? 2)
   if (priorityDiff !== 0) return priorityDiff
@@ -57,7 +55,7 @@ const TaskList = ({ onRunTask, onFocusTask, dailyWins }) => {
   const { currentMood, currentEnergy } = useEmotionStore()
   const { tags: TAG_DEFINITIONS } = useTagsStore()
 
-  const [sortBy, setSortBy] = useState('focus')
+  const [sortBy, setSortBy] = useState('smart')
   const [filterPriority, setFilterPriority] = useState(null) // null = all
   const [filterTag, setFilterTag] = useState(null)
   const [showCompleted, setShowCompleted] = useState(false)
@@ -68,10 +66,18 @@ const TaskList = ({ onRunTask, onFocusTask, dailyWins }) => {
     if (filterPriority) list = list.filter((t) => t.priority === filterPriority)
     if (filterTag) list = list.filter((t) => (t.tags ?? []).includes(filterTag))
     if (sortBy === 'focus') {
-      list = list.filter((t) => t.dueDate && compareDateKeys(t.dueDate, today) <= 0)
+      // Focus: overdue+today tasks come first, no-due-date and future tasks still shown
       list = [...list].sort((a, b) => {
-        const dueDiff = compareDateKeys(a.dueDate, b.dueDate)
-        if (dueDiff !== 0) return dueDiff
+        // Urgency bucket: overdue=0, today=1, no-date=2, future=3
+        const getBucket = (t) => {
+          if (!t.dueDate) return 2
+          const diff = diffCalendarDays(t.dueDate, today)
+          if (diff < 0) return 0  // overdue
+          if (diff === 0) return 1 // today
+          return 3                  // future
+        }
+        const bucketDiff = getBucket(a) - getBucket(b)
+        if (bucketDiff !== 0) return bucketDiff
         return (priorityOrder[b.priority] ?? 0) - (priorityOrder[a.priority] ?? 0)
       })
     } else if (sortBy === 'priority' || sortBy === 'smart') {
@@ -98,7 +104,7 @@ const TaskList = ({ onRunTask, onFocusTask, dailyWins }) => {
     }
 
     const orderedKeys = sortBy === 'focus'
-      ? (buckets.overdue.length > 0 ? ['overdue'] : FOCUS_SECTION_ORDER)
+      ? ['overdue', 'today', 'noDueDate', 'upcoming', 'tomorrow']
       : ['overdue', 'today', 'tomorrow', 'upcoming', 'noDueDate']
 
     return orderedKeys

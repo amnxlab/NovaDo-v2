@@ -324,8 +324,16 @@ app.use((err, req, res, next) => {
   next(err)
 })
 
-app.listen(PORT, () => {
-  console.log(`💾 NovaDo data server running on http://localhost:${PORT}`)
-  console.log(`📁 Data stored in: ${DATA_DIR}`)
-  console.log(`🍪 Auth: HTTP-only cookie (novado_token) — sessions persist across devices`)
+app.listen(PORT, '0.0.0.0', () => {
+  // Print the LAN IP(s) so users can connect from other devices
+  import('os').then(({ networkInterfaces }) => {
+    const nets = networkInterfaces()
+    const lanIps = Object.values(nets).flat().filter((n) => n.family === 'IPv4' && !n.internal).map((n) => n.address)
+    console.log(`💾 NovaDo data server running on http://localhost:${PORT}`)
+    if (lanIps.length > 0) {
+      lanIps.forEach((ip) => console.log(`🌐 LAN access: http://${ip}:${PORT}`))
+    }
+    console.log(`📁 Data stored in: ${DATA_DIR}`)
+    console.log(`🍪 Auth: HTTP-only cookie (novado_token) — sessions persist across devices`)
+  })
 })
