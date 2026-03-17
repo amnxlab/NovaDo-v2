@@ -2,6 +2,7 @@ import express from 'express'
 import cors from 'cors'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
+import cookieParser from 'cookie-parser'
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
@@ -12,16 +13,23 @@ const USERS_FILE = join(DATA_DIR, '_users.json')
 const app = express()
 const PORT = 3001
 const STORAGE_META_KEY = '__storageMeta'
+const COOKIE_NAME = 'novado_token'
 
 // IMPORTANT: Set a strong secret in production via environment variable
 const JWT_SECRET = process.env.JWT_SECRET || 'novado-dev-secret-change-in-production'
 const JWT_EXPIRES_IN = '30d'
+const COOKIE_MAX_AGE = 30 * 24 * 60 * 60 * 1000 // 30 days in ms
 
 // Ensure data directory exists
 if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true })
 
-app.use(cors())
+// Allow cookies from the frontend origin (same-site port-forward scenario)
+app.use(cors({
+  origin: true,           // reflect the request origin
+  credentials: true,      // allow cookies
+}))
 app.use(express.json({ limit: '10mb' }))
+app.use(cookieParser())
 
 // ─── User storage helpers ────────────────────────────────────────────────────
 
@@ -38,20 +46,43 @@ function saveUsers(users) {
   writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), 'utf-8')
 }
 
+// ─── Cookie helpers ───────────────────────────────────────────────────────────
+
+function setAuthCookie(res, token) {
+  res.cookie(COOKIE_NAME, token, {
+    httpOnly: true,           // not accessible to JS — prevents XSS theft
+    sameSite: 'lax',          // safe for same-origin port-forward scenarios
+    secure: false,            // set to true if you add HTTPS in future
+    maxAge: COOKIE_MAX_AGE,
+    path: '/',
+  })
+}
+
+function clearAuthCookie(res) {
+  res.clearCookie(COOKIE_NAME, { path: '/' })
+}
+
 // ─── JWT middleware ──────────────────────────────────────────────────────────
 
 function requireAuth(req, res, next) {
-  const authHeader = req.headers['authorization']
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Missing or invalid token' })
+  // Accept token from cookie (primary) or Authorization header (legacy fallback)
+  let token = req.cookies?.[COOKIE_NAME]
+  if (!token) {
+    const authHeader = req.headers['authorization']
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.slice(7)
+    }
   }
-  const token = authHeader.slice(7)
+  if (!token) {
+    return res.status(401).json({ error: 'Not authenticated' })
+  }
   try {
     const payload = jwt.verify(token, JWT_SECRET)
     req.userId = payload.sub
     req.username = payload.username
     next()
   } catch {
+    clearAuthCookie(res)
     return res.status(401).json({ error: 'Token expired or invalid' })
   }
 }
@@ -94,7 +125,8 @@ app.post('/api/auth/register', async (req, res) => {
   saveUsers(users)
 
   const token = jwt.sign({ sub: id, username }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN })
-  res.status(201).json({ token, user: { id, username, createdAt: user.createdAt } })
+  setAuthCookie(res, token)
+  res.status(201).json({ user: { id, username, createdAt: user.createdAt } })
 })
 
 // POST /api/auth/login
@@ -120,10 +152,17 @@ app.post('/api/auth/login', async (req, res) => {
   }
 
   const token = jwt.sign({ sub: user.id, username: user.username }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN })
-  res.json({ token, user: { id: user.id, username: user.username, createdAt: user.createdAt } })
+  setAuthCookie(res, token)
+  res.json({ user: { id: user.id, username: user.username, createdAt: user.createdAt } })
 })
 
-// GET /api/auth/me — verify token and return user info
+// POST /api/auth/logout — clears the auth cookie
+app.post('/api/auth/logout', (req, res) => {
+  clearAuthCookie(res)
+  res.json({ ok: true })
+})
+
+// GET /api/auth/me — verify token (via cookie) and return user info
 app.get('/api/auth/me', requireAuth, (req, res) => {
   const users = loadUsers()
   const user = users[req.userId]
@@ -288,4 +327,5 @@ app.use((err, req, res, next) => {
 app.listen(PORT, () => {
   console.log(`💾 NovaDo data server running on http://localhost:${PORT}`)
   console.log(`📁 Data stored in: ${DATA_DIR}`)
+  console.log(`🍪 Auth: HTTP-only cookie (novado_token) — sessions persist across devices`)
 })

@@ -25,6 +25,7 @@ export default function AuthPage() {
       const endpoint = tab === 'login' ? '/api/auth/login' : '/api/auth/register'
       const res = await fetch(endpoint, {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: username.trim(), password }),
       })
@@ -33,7 +34,7 @@ export default function AuthPage() {
         setError(data.error || 'Something went wrong')
         return
       }
-      setAuth(data.user, data.token)
+      setAuth(data.user)
       // Full page reload so all Zustand stores rehydrate from the server
       // with the valid token. Without this, stores that initialized while the
       // user was on the auth screen (no token) would stay empty.
@@ -78,11 +79,10 @@ export default function AuthPage() {
               <button
                 key={t}
                 onClick={() => { setTab(t); setError('') }}
-                className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${
-                  tab === t
+                className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${tab === t
                     ? 'bg-purple-600 text-white shadow'
                     : 'text-gray-400 hover:text-white'
-                }`}
+                  }`}
               >
                 {t === 'login' ? 'Sign In' : 'Create Account'}
               </button>
@@ -177,7 +177,7 @@ export default function AuthPage() {
         </div>
 
         <p className="text-center text-xs text-gray-700 mt-6">
-          Your data is stored locally on this device.
+          Your data is stored on the server — accessible from any device.
         </p>
       </motion.div>
     </div>

@@ -1,62 +1,57 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+import { persist, createJSONStorage } from 'zustand/middleware'
 
-// Auth store — persisted to plain localStorage only (not file server)
-// Token is used to authenticate all API requests
+// Auth store — stores only the user profile object (not the token).
+// The JWT token lives in an HTTP-only cookie managed by the server,
+// so it is invisible to JavaScript and persists across devices automatically.
 const useAuthStore = create(
   persist(
     (set) => ({
       user: null,   // { id, username, createdAt }
-      token: null,  // JWT string
       _hasHydrated: false,
 
       setHasHydrated: (value) => set({ _hasHydrated: value }),
 
-      setAuth: (user, token) => set({ user, token }),
+      setAuth: (user) => set({ user }),
 
-      clearAuth: () => {
-        set({ user: null, token: null })
-        // Clear all store caches from localStorage on logout
-        const storeKeys = [
-          'tasks-storage', 'xp-storage', 'settings-storage', 'analytics-storage',
-          'customization-storage', 'emotion-storage', 'ai-coach-storage',
-          'tags-storage', 'routines-storage', 'roadmaps-storage',
-          'parking-lot-storage', 'distraction-storage',
-        ]
-        storeKeys.forEach((k) => localStorage.removeItem(k))
-        // Reload the page to flush all in-memory Zustand state.
-        // This ensures no data bleeds between user sessions.
+      clearAuth: async () => {
+        // Tell the server to clear the cookie, then wipe local state.
+        try {
+          await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' })
+        } catch {
+          // ignore network errors — cookie will expire on its own
+        }
+        set({ user: null })
+        // Reload to flush all in-memory Zustand state between sessions
         window.location.replace('/')
       },
     }),
     {
       name: 'auth-storage',
-      // Intentionally uses default localStorage — no file server for auth
+      // Use sessionStorage so the profile is gone when the tab/browser closes,
+      // but the HTTP-only cookie keeps the user logged in across devices.
+      storage: createJSONStorage(() => sessionStorage),
       onRehydrateStorage: () => (state) => { state?.setHasHydrated(true) },
       partialize: (state) => {
-        const { _hasHydrated, setHasHydrated, ...rest } = state
+        const { _hasHydrated, setHasHydrated, clearAuth, ...rest } = state
         return rest
       },
     }
   )
 )
 
-// Read token without subscribing (for use in fileStorage.js)
+// The token is now in an HTTP-only cookie — not accessible to JS.
+// These functions return null/false so fileStorage doesn't try to add Bearer headers.
 export function getAuthToken() {
-  try {
-    const raw = localStorage.getItem('auth-storage')
-    if (!raw) return null
-    return JSON.parse(raw)?.state?.token ?? null
-  } catch {
-    return null
-  }
+  return null
 }
 
-// Alternative: get token from the store itself (works in browser)
 export function getTokenFromStore() {
-  return useAuthStore.getState().token
+  return null
 }
 
+// Auth is considered hydrated once the store has rehydrated from sessionStorage.
+// We also consider it ready if there's already a user in the store.
 export function isAuthStoreHydrated() {
   return !!useAuthStore.getState()._hasHydrated
 }

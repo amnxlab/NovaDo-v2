@@ -15,6 +15,7 @@
     "bcryptjs": "^3.0.3",
     "canvas-confetti": "^1.9.4",
     "concurrently": "^9.2.1",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "express": "^5.2.1",
     "framer-motion": "^12.36.0",

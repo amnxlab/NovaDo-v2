@@ -1,4 +1,5 @@
 import { createBrowserRouter, RouterProvider } from 'react-router-dom'
+import { useEffect, useState } from 'react'
 import Layout from './components/Layout'
 import TasksPage from './pages/TasksPage'
 import RoutinesPage from './pages/RoutinesPage'
@@ -26,13 +27,34 @@ const router = createBrowserRouter([
 ])
 
 export default function App() {
-  const { token, _hasHydrated: authHydrated } = useAuthStore()
+  const { user, _hasHydrated: authHydrated, setAuth, setHasHydrated } = useAuthStore()
+  // Track whether we have finished the cookie-resume check
+  const [sessionChecked, setSessionChecked] = useState(false)
 
-  if (!authHydrated) return null
+  useEffect(() => {
+    // If authStore already has a user (from sessionStorage), skip the check.
+    if (!authHydrated) return
+    if (user) { setSessionChecked(true); return }
 
-  if (!token) return <AuthPage />
+    // No user in sessionStorage — check if the browser has a valid auth cookie
+    // by calling /api/auth/me. If it succeeds, restore the session silently.
+    fetch('/api/auth/me', { credentials: 'include' })
+      .then(async (res) => {
+        if (res.ok) {
+          const userData = await res.json()
+          setAuth(userData)
+        }
+      })
+      .catch(() => { /* server unreachable — show login page */ })
+      .finally(() => {
+        setSessionChecked(true)
+      })
+  }, [authHydrated]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Wait for both the store to hydrate and the session check to complete
+  if (!authHydrated || !sessionChecked) return null
+
+  if (!user) return <AuthPage />
 
   return <RouterProvider router={router} />
 }
-
-

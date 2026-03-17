@@ -1,4 +1,4 @@
-import { getAuthToken, getTokenFromStore, isAuthStoreHydrated } from '../store/authStore'
+import { isAuthStoreHydrated } from '../store/authStore'
 
 const API_BASE = '/api/store'
 const STORAGE_META_KEY = '__storageMeta'
@@ -9,19 +9,16 @@ const CONFLICT_SNAPSHOT_PREFIX = '__novado_conflict_snapshot__'
 let storageClientId = `client_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
 const getStorageClientId = () => storageClientId
 
-const authHeaders = () => {
-  const token = getCurrentToken()
-  return token ? { Authorization: `Bearer ${token}` } : {}
-}
-
-const getCurrentToken = () => getTokenFromStore() || getAuthToken()
+// All requests use credentials:'include' so the browser sends the auth cookie.
+// No Authorization header needed — the server reads the HTTP-only cookie.
+const FETCH_DEFAULTS = { credentials: 'include' }
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
 const waitForAuthReady = async (timeoutMs = 800) => {
   const startedAt = Date.now()
   while (Date.now() - startedAt < timeoutMs) {
-    if (isAuthStoreHydrated() || getCurrentToken()) return
+    if (isAuthStoreHydrated()) return
     await wait(20)
   }
 }
@@ -72,7 +69,7 @@ export function getPersistenceSyncSummary() {
 }
 
 export function subscribePersistenceSync(listener) {
-  if (typeof listener !== 'function') return () => {}
+  if (typeof listener !== 'function') return () => { }
   syncSubscribers.add(listener)
   listener(getPersistenceSyncSummary())
   return () => {
@@ -83,7 +80,7 @@ export function subscribePersistenceSync(listener) {
 const writeOfflineSnapshot = (name, serialized) => {
   try {
     localStorage.setItem(queueKey(name), serialized)
-    setSyncState(name, 'offline', 'Queued locally until connection/auth is restored')
+    setSyncState(name, 'offline', 'Queued locally until connection is restored')
   } catch {
     // ignore
   }
@@ -146,7 +143,7 @@ const rememberRevision = (name, payload) => {
 }
 
 const writeHeaders = (name) => {
-  const headers = { 'Content-Type': 'application/json', ...authHeaders() }
+  const headers = { 'Content-Type': 'application/json' }
   const expectedRevision = getKnownRevision(name)
   if (Number.isInteger(expectedRevision)) {
     headers['X-Expected-Revision'] = String(expectedRevision)
@@ -158,16 +155,15 @@ const fetchWithTimeout = async (url, options = {}, timeoutMs = 5000) => {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
   try {
-    return await fetch(url, { ...options, signal: controller.signal })
+    return await fetch(url, { ...FETCH_DEFAULTS, ...options, signal: controller.signal })
   } finally {
     clearTimeout(timer)
   }
 }
 
 const flushOfflineSnapshot = async (name) => {
-  const token = getCurrentToken()
   const queued = readOfflineSnapshot(name)
-  if (!token || !queued) return false
+  if (!queued) return false
 
   try {
     const res = await fetchWithTimeout(
@@ -247,46 +243,43 @@ const clearLocal = (name) => {
 }
 
 /**
- * createFileStorage - server-first persistence with optional one-time migration
- * from old localStorage entries. No new data is written to localStorage.
+ * createFileStorage - server-first persistence.
+ * Auth is handled via HTTP-only cookie (auto-sent by browser).
+ * No Authorization headers needed.
  */
 export function createFileStorage() {
   return {
     /**
-    * Async getItem - fetches from server; if missing but a legacy local copy
-    * exists, uploads it once to the server (when authenticated) and returns it.
+     * Async getItem - fetches from server. Cookie is sent automatically.
      */
     getItem: async (name) => {
       await waitForAuthReady()
-      const token = getCurrentToken()
       const legacyLocal = readLocalForMigration(name)
       let serverValue = null
       let serverReadSucceeded = false
 
-      if (token) {
-        try {
-          const res = await fetchWithTimeout(`${API_BASE}/${encodeURIComponent(name)}`, {
-            headers: authHeaders(),
-          })
-          if (res.ok) {
-            serverReadSucceeded = true
-            serverValue = await res.json()
-          } else {
-            setSyncState(name, 'error', `Read failed (${res.status})`)
-          }
-        } catch {
-          // server unreachable — fall through
-          setSyncState(name, 'offline', 'Server unreachable while reading')
+      try {
+        const res = await fetchWithTimeout(`${API_BASE}/${encodeURIComponent(name)}`)
+        if (res.ok) {
+          serverReadSucceeded = true
+          serverValue = await res.json()
+        } else if (res.status === 401) {
+          // Not authenticated yet — use offline snapshot if available
+          setSyncState(name, 'offline', 'Waiting for authentication')
+        } else {
+          setSyncState(name, 'error', `Read failed (${res.status})`)
         }
+      } catch {
+        // server unreachable — fall through
+        setSyncState(name, 'offline', 'Server unreachable while reading')
       }
 
-      const appliedQueuedSnapshot = token ? await flushOfflineSnapshot(name) : false
+      const appliedQueuedSnapshot = await flushOfflineSnapshot(name)
       if (appliedQueuedSnapshot) {
         const queued = readOfflineSnapshot(name)
         if (!queued) {
-          const latest = await fetchWithTimeout(`${API_BASE}/${encodeURIComponent(name)}`, {
-            headers: authHeaders(),
-          }).then((res) => (res.ok ? res.json() : null)).catch(() => null)
+          const latest = await fetchWithTimeout(`${API_BASE}/${encodeURIComponent(name)}`)
+            .then((res) => (res.ok ? res.json() : null)).catch(() => null)
           if (latest !== null && latest !== undefined) return stripStorageMeta(latest)
         }
       }
@@ -299,30 +292,23 @@ export function createFileStorage() {
         return stripStorageMeta(serverValue)
       }
 
-      if (token && !serverReadSucceeded && legacyLocal) {
+      if (!serverReadSucceeded && legacyLocal) {
         // Server fetch failed: keep legacy local data as temporary fallback.
-        // Do not auto-migrate to avoid overwriting newer server state.
         setSyncState(name, 'offline', 'Using local fallback while server is unavailable')
         return stripStorageMeta(legacyLocal)
       }
 
-      // If server read succeeded and returned null while local legacy exists,
-      // defer migration to an explicit user conflict flow.
-      setSyncState(name, token ? 'synced' : 'offline', token ? 'No server value yet' : 'Waiting for authentication')
+      setSyncState(name, serverReadSucceeded ? 'synced' : 'offline',
+        serverReadSucceeded ? 'No server value yet' : 'Waiting for server')
       return null
     },
 
     /**
-     * setItem — write to server only (debounced). Requires an auth token.
+     * setItem — write to server only (debounced). Cookie sent automatically.
      */
     setItem: (name, value) => {
       clearLocal(name)
       const serialized = JSON.stringify(withStorageMeta(name, value))
-      const token = getCurrentToken()
-      if (!token) {
-        writeOfflineSnapshot(name, serialized)
-        return
-      }
       setSyncState(name, 'pending', 'Save queued')
       debouncedSave(name, serialized)
     },
@@ -336,12 +322,10 @@ export function createFileStorage() {
       clearConflictSnapshot(name)
       latestServerRevisions.delete(name)
       setSyncState(name, 'synced', 'Store reset')
-      const token = getCurrentToken()
-      if (!token) return
       fetch(`${API_BASE}/${encodeURIComponent(name)}`, {
+        ...FETCH_DEFAULTS,
         method: 'DELETE',
-        headers: authHeaders(),
-      }).catch(() => {})
+      }).catch(() => { })
     },
   }
 }
@@ -356,45 +340,39 @@ function debouncedSave(name, serialized) {
 
   const timer = setTimeout(() => {
     pendingWrites.delete(name)
-    const token = getCurrentToken()
-    if (token) {
-      setSyncState(name, 'pending', 'Saving to server')
-      fetchWithTimeout(`${API_BASE}/${encodeURIComponent(name)}`, {
-        method: 'PUT',
-        headers: writeHeaders(name),
-        body: serialized,
-      }, 5000).then(async (res) => {
-        if (res.status === 409) {
-          const serverConflict = await res.json().catch(() => ({}))
-          writeConflictSnapshot(name, {
-            at: Date.now(),
-            name,
-            localSnapshot: JSON.parse(serialized),
-            server: serverConflict,
-          })
-          writeOfflineSnapshot(name, serialized)
-          return
-        }
-        if (!res.ok) {
-          setSyncState(name, 'error', `Save failed (${res.status})`)
-          writeOfflineSnapshot(name, serialized)
-          return
-        }
-        const payload = await res.json().catch(() => null)
-        if (payload && Number.isInteger(payload.serverRevision)) {
-          latestServerRevisions.set(name, payload.serverRevision)
-        }
-        clearConflictSnapshot(name)
-        clearOfflineSnapshot(name)
-        setSyncState(name, 'synced', 'Saved to server')
-      }).catch(() => {
-        // Retain the latest write for replay when connectivity recovers.
-        setSyncState(name, 'offline', 'Save failed while offline; queued')
+    setSyncState(name, 'pending', 'Saving to server')
+    fetchWithTimeout(`${API_BASE}/${encodeURIComponent(name)}`, {
+      method: 'PUT',
+      headers: writeHeaders(name),
+      body: serialized,
+    }, 5000).then(async (res) => {
+      if (res.status === 409) {
+        const serverConflict = await res.json().catch(() => ({}))
+        writeConflictSnapshot(name, {
+          at: Date.now(),
+          name,
+          localSnapshot: JSON.parse(serialized),
+          server: serverConflict,
+        })
         writeOfflineSnapshot(name, serialized)
-      })
-    } else {
+        return
+      }
+      if (!res.ok) {
+        setSyncState(name, 'error', `Save failed (${res.status})`)
+        writeOfflineSnapshot(name, serialized)
+        return
+      }
+      const payload = await res.json().catch(() => null)
+      if (payload && Number.isInteger(payload.serverRevision)) {
+        latestServerRevisions.set(name, payload.serverRevision)
+      }
+      clearConflictSnapshot(name)
+      clearOfflineSnapshot(name)
+      setSyncState(name, 'synced', 'Saved to server')
+    }).catch(() => {
+      setSyncState(name, 'offline', 'Save failed while offline; queued')
       writeOfflineSnapshot(name, serialized)
-    }
+    })
   }, 300)
 
   pendingWrites.set(name, timer)
@@ -431,10 +409,6 @@ export async function resolvePersistenceConflict(name, strategy = 'server') {
   }
 
   await waitForAuthReady()
-  const token = getCurrentToken()
-  if (!token) {
-    return { ok: false, error: 'Authentication required to resolve conflicts' }
-  }
 
   const conflict = readConflictSnapshot(name)
   const queued = readOfflineSnapshot(name)
