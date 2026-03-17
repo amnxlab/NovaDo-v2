@@ -8,6 +8,22 @@ set -e
 
 cd "$(dirname "$0")"
 
+# Ensure npm is available in non-interactive shells (launcher/SSH exec).
+if ! command -v npm >/dev/null 2>&1; then
+  export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
+  if [ -s "$NVM_DIR/nvm.sh" ]; then
+    # shellcheck source=/dev/null
+    . "$NVM_DIR/nvm.sh"
+  fi
+fi
+
+if ! command -v npm >/dev/null 2>&1; then
+  echo "❌ npm is not available in PATH for this session."
+  echo "   Install Node.js/npm or configure PATH/NVM for non-interactive shells."
+  echo "   PATH=$PATH"
+  exit 127
+fi
+
 # Kill any stale processes on ports 3000 and 3001
 for PORT in 3000 3001; do
   PID=$(lsof -ti tcp:$PORT 2>/dev/null || true)

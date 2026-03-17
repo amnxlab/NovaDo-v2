@@ -8,6 +8,9 @@ const useAuthStore = create(
     (set) => ({
       user: null,   // { id, username, createdAt }
       token: null,  // JWT string
+      _hasHydrated: false,
+
+      setHasHydrated: (value) => set({ _hasHydrated: value }),
 
       setAuth: (user, token) => set({ user, token }),
 
@@ -29,6 +32,11 @@ const useAuthStore = create(
     {
       name: 'auth-storage',
       // Intentionally uses default localStorage — no file server for auth
+      onRehydrateStorage: () => (state) => { state?.setHasHydrated(true) },
+      partialize: (state) => {
+        const { _hasHydrated, setHasHydrated, ...rest } = state
+        return rest
+      },
     }
   )
 )
@@ -47,6 +55,10 @@ export function getAuthToken() {
 // Alternative: get token from the store itself (works in browser)
 export function getTokenFromStore() {
   return useAuthStore.getState().token
+}
+
+export function isAuthStoreHydrated() {
+  return !!useAuthStore.getState()._hasHydrated
 }
 
 export default useAuthStore

@@ -21,6 +21,7 @@ import useCustomizationStore from '../store/customizationStore'
 import useAuthStore from '../store/authStore'
 import useTasksStore from '../store/tasksStore'
 import useEmotionStore from '../store/emotionStore'
+import { getPersistenceSyncSummary, subscribePersistenceSync } from '../utils/fileStorage'
 
 const NAV_ITEMS = [
   { to: '/',             icon: '📋', label: 'Tasks'        },
@@ -64,6 +65,7 @@ export default function Layout() {
   const [showEmotionTracker, setShowEmotionTracker] = useState(false)
   const { checkpointCount, checkpointDate, setCheckpoint, _hasHydrated: emotionHydrated } = useEmotionStore()
   const xpHydrated = useXPStore((s) => s._hasHydrated)
+  const [syncSummary, setSyncSummary] = useState(() => getPersistenceSyncSummary())
 
   // Daily Wins gate — show if not set today
   const todayStr = (() => {
@@ -126,6 +128,28 @@ export default function Layout() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [focusTask])
 
+  useEffect(() => {
+    const unsubscribe = subscribePersistenceSync((nextSummary) => {
+      setSyncSummary(nextSummary)
+    })
+    return unsubscribe
+  }, [])
+
+  const syncBadge = (() => {
+    switch (syncSummary.overall) {
+      case 'conflict':
+        return { label: 'Sync conflict', classes: 'bg-yellow-900/60 border-yellow-700 text-yellow-200' }
+      case 'offline':
+        return { label: 'Offline queued', classes: 'bg-orange-900/60 border-orange-700 text-orange-200' }
+      case 'pending':
+        return { label: 'Syncing', classes: 'bg-blue-900/60 border-blue-700 text-blue-200' }
+      case 'error':
+        return { label: 'Sync issue', classes: 'bg-red-900/60 border-red-700 text-red-200' }
+      default:
+        return { label: 'Synced', classes: 'bg-emerald-900/60 border-emerald-700 text-emerald-200' }
+    }
+  })()
+
 
 
   return (
@@ -171,6 +195,14 @@ export default function Layout() {
       </AnimatePresence>
 
       <div id="app-root" className="flex min-h-screen bg-gray-900 text-white">
+        <div className="fixed top-3 left-1/2 -translate-x-1/2 z-[65]">
+          <div className={`px-3 py-1.5 rounded-full text-xs border backdrop-blur ${syncBadge.classes}`}>
+            {syncBadge.label}
+            {syncSummary.counts.conflict > 0 ? ` · ${syncSummary.counts.conflict} conflict` : ''}
+            {syncSummary.counts.pending > 0 ? ` · ${syncSummary.counts.pending} pending` : ''}
+          </div>
+        </div>
+
         {/* Sidebar */}
         <aside
           className={`fixed top-0 left-0 h-full z-40 bg-gray-950 border-r border-gray-800 flex flex-col transition-all duration-200 ${

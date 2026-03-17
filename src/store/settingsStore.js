@@ -18,6 +18,8 @@ const useSettingsStore = create(
       autopilotEnabled: false,   // ADHD Autopilot mode
       timelineDockVisible: true, // show timeline dock when tasks have due dates
       activeView: 'list',        // 'list' | 'planner' | 'focus'
+      _hasHydrated: false,
+      setHasHydrated: (value) => set({ _hasHydrated: value }),
       toggleSound: () => set((s) => ({ soundEnabled: !s.soundEnabled })),
       toggleConfetti: () => set((s) => ({ confettiEnabled: !s.confettiEnabled })),
       toggleGamification: () => set((s) => ({ gamificationEnabled: !s.gamificationEnabled })),
@@ -35,6 +37,11 @@ const useSettingsStore = create(
       name: 'settings-storage',
       storage: createFileStorage(),
       version: 3,
+      onRehydrateStorage: () => (state) => { state?.setHasHydrated(true) },
+      partialize: (state) => {
+        const { _hasHydrated, setHasHydrated, ...rest } = state
+        return rest
+      },
       migrate: (persisted, version) => {
         if (version < 2) {
           persisted = { ...persisted, timerVisible: false }

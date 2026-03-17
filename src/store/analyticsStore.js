@@ -9,6 +9,8 @@ const useAnalyticsStore = create(
       focusSessions: [], // { start, end, duration, tasksCompleted }
       dailyStats: [], // { date, tasksCompleted, focusTime, tasksCreated }
       weeklyStreaks: [],
+      _hasHydrated: false,
+      setHasHydrated: (value) => set({ _hasHydrated: value }),
       addFocusSession: (duration, tasksCompleted) => {
         set((state) => ({
           focusSessions: [...state.focusSessions, { start: new Date().toISOString(), duration, tasksCompleted }],
@@ -25,7 +27,15 @@ const useAnalyticsStore = create(
         }))
       },
     }),
-    { name: 'analytics-storage', storage: createFileStorage() }
+    {
+      name: 'analytics-storage',
+      storage: createFileStorage(),
+      onRehydrateStorage: () => (state) => { state?.setHasHydrated(true) },
+      partialize: (state) => {
+        const { _hasHydrated, setHasHydrated, ...rest } = state
+        return rest
+      },
+    }
   )
 )
 

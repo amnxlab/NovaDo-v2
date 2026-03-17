@@ -7,6 +7,8 @@ const useParkingLotStore = create(
   persist(
     (set, get) => ({
       items: [],
+      _hasHydrated: false,
+      setHasHydrated: (value) => set({ _hasHydrated: value }),
 
       addItem: (text) => {
         if (!text.trim()) return
@@ -31,6 +33,11 @@ const useParkingLotStore = create(
     {
       name: 'parking-lot-storage',
       storage: createFileStorage(),
+      onRehydrateStorage: () => (state) => { state?.setHasHydrated(true) },
+      partialize: (state) => {
+        const { _hasHydrated, setHasHydrated, ...rest } = state
+        return rest
+      },
     }
   )
 )

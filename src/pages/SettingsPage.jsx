@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import useSettingsStore from '../store/settingsStore'
 import useTasksStore from '../store/tasksStore'
@@ -6,6 +6,13 @@ import useTagsStore from '../store/tagsStore'
 import EmojiPicker from '../components/EmojiPicker'
 import useCustomizationStore from '../store/customizationStore'
 import { audioPlayer } from '../utils/audio'
+import useNotificationStore from '../store/notificationStore'
+import {
+  getPersistenceSyncSummary,
+  listPersistenceConflicts,
+  resolvePersistenceConflict,
+  subscribePersistenceSync,
+} from '../utils/fileStorage'
 
 const PRESET_COLORS = [
   'bg-blue-700', 'bg-teal-700', 'bg-indigo-700', 'bg-rose-700',
@@ -62,8 +69,12 @@ export default function SettingsPage() {
     colorScheme, animationIntensity, fontSize, backgroundPattern, highContrast,
     toggleColorScheme, setAnimationIntensity, setFontSize, setBackgroundPattern, toggleHighContrast,
   } = useCustomizationStore()
+  const { addNotification } = useNotificationStore()
 
   const [confirmNuke, setConfirmNuke] = useState(false)
+  const [conflicts, setConflicts] = useState([])
+  const [resolvingStore, setResolvingStore] = useState(null)
+  const [syncSummary, setSyncSummary] = useState(() => getPersistenceSyncSummary())
   const [newTagEmoji, setNewTagEmoji] = useState('🏷️')
   const [newTagLabel, setNewTagLabel] = useState('')
   const [newTagColor, setNewTagColor] = useState('bg-blue-700')
@@ -79,6 +90,38 @@ export default function SettingsPage() {
     setNewTagLabel('')
     setNewTagEmoji('🏷️')
     setNewTagKeywords('')
+  }
+
+  const refreshConflicts = () => {
+    setConflicts(listPersistenceConflicts())
+  }
+
+  useEffect(() => {
+    refreshConflicts()
+    const unsubscribe = subscribePersistenceSync((nextSummary) => {
+      setSyncSummary(nextSummary)
+    })
+    return unsubscribe
+  }, [])
+
+  const handleResolveConflict = async (storeName, strategy) => {
+    setResolvingStore(storeName)
+    const result = await resolvePersistenceConflict(storeName, strategy)
+    setResolvingStore(null)
+
+    if (!result.ok) {
+      addNotification(result.error || 'Could not resolve sync conflict', 'error')
+      return
+    }
+
+    addNotification(
+      strategy === 'local'
+        ? `Kept local copy for ${storeName}.`
+        : `Kept server copy for ${storeName}.`,
+      'success'
+    )
+    refreshConflicts()
+    setTimeout(() => window.location.reload(), 300)
   }
 
   return (
@@ -291,6 +334,79 @@ export default function SettingsPage() {
         </div>
 
         {/* Danger zone */}
+        <div className="bg-gray-800 rounded-xl p-5 border border-blue-900/30 md:col-span-2">
+          <h3 className="text-sm font-semibold text-blue-400 uppercase tracking-wider mb-4">Sync Health</h3>
+          <div className="mb-3 text-sm text-gray-300">
+            Overall status: <span className="font-semibold text-white">{syncSummary.overall}</span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-4 text-xs">
+            <div className="rounded-lg bg-gray-900/60 px-2 py-1.5 border border-gray-700">Synced: {syncSummary.counts.synced}</div>
+            <div className="rounded-lg bg-gray-900/60 px-2 py-1.5 border border-blue-700">Pending: {syncSummary.counts.pending}</div>
+            <div className="rounded-lg bg-gray-900/60 px-2 py-1.5 border border-orange-700">Offline: {syncSummary.counts.offline}</div>
+            <div className="rounded-lg bg-gray-900/60 px-2 py-1.5 border border-yellow-700">Conflict: {syncSummary.counts.conflict}</div>
+            <div className="rounded-lg bg-gray-900/60 px-2 py-1.5 border border-red-700">Errors: {syncSummary.counts.error}</div>
+          </div>
+
+          {syncSummary.stores.length === 0 ? (
+            <p className="text-sm text-gray-400">No store sync activity yet in this session.</p>
+          ) : (
+            <div className="space-y-2">
+              {syncSummary.stores.map((store) => (
+                <div key={store.name} className="rounded-lg border border-gray-700 bg-gray-900/50 px-3 py-2 flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-sm text-white">{store.name}</p>
+                    <p className="text-xs text-gray-500">{store.detail || 'No details'}</p>
+                  </div>
+                  <span className="text-xs uppercase tracking-wide text-gray-300">{store.status}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="bg-gray-800 rounded-xl p-5 border border-yellow-900/30 md:col-span-2">
+          <h3 className="text-sm font-semibold text-yellow-400 uppercase tracking-wider mb-4">Sync Conflicts</h3>
+          {conflicts.length === 0 ? (
+            <p className="text-sm text-gray-400">No pending sync conflicts detected.</p>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-sm text-gray-300">
+                We detected {conflicts.length} conflicted stor{conflicts.length === 1 ? 'e' : 'es'}. Choose how each should be resolved.
+              </p>
+              {conflicts.map((item) => (
+                <div key={item.name} className="rounded-lg bg-gray-900/60 border border-gray-700 px-3 py-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm text-white font-medium">{item.name}</p>
+                      <p className="text-xs text-gray-500">
+                        {item.payload?.server?.currentRevision !== undefined
+                          ? `Server rev ${item.payload.server.currentRevision} vs local rev ${item.payload.server.expectedRevision}`
+                          : 'Revision mismatch detected'}
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleResolveConflict(item.name, 'server')}
+                        disabled={resolvingStore === item.name}
+                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-gray-700 hover:bg-gray-600 text-gray-100 disabled:opacity-50"
+                      >
+                        Keep Server
+                      </button>
+                      <button
+                        onClick={() => handleResolveConflict(item.name, 'local')}
+                        disabled={resolvingStore === item.name}
+                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-yellow-700 hover:bg-yellow-600 text-yellow-50 disabled:opacity-50"
+                      >
+                        Keep Local
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         <div className="bg-gray-800 rounded-xl p-5 border border-red-900/30 md:col-span-2">
           <h3 className="text-sm font-semibold text-red-400 uppercase tracking-wider mb-4">⚠️ Danger Zone</h3>
           <div className="space-y-3">

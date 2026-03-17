@@ -10,6 +10,8 @@ const useDistractionStore = create(
     (set, get) => ({
       logs: [],
       categories: CATEGORIES,
+      _hasHydrated: false,
+      setHasHydrated: (value) => set({ _hasHydrated: value }),
 
       addLog: (description, category = 'other') => {
         set((state) => ({
@@ -38,6 +40,11 @@ const useDistractionStore = create(
     {
       name: 'distraction-storage',
       storage: createFileStorage(),
+      onRehydrateStorage: () => (state) => { state?.setHasHydrated(true) },
+      partialize: (state) => {
+        const { _hasHydrated, setHasHydrated, ...rest } = state
+        return rest
+      },
     }
   )
 )

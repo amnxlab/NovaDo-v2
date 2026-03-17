@@ -7,6 +7,8 @@ const useTagsStore = create(
   persist(
     (set) => ({
       tags: { ...DEFAULT_TAGS },
+      _hasHydrated: false,
+      setHasHydrated: (value) => set({ _hasHydrated: value }),
 
       addTag: (key, def) =>
         set((s) => ({ tags: { ...s.tags, [key]: def } })),
@@ -20,7 +22,15 @@ const useTagsStore = create(
 
       resetTags: () => set({ tags: { ...DEFAULT_TAGS } }),
     }),
-    { name: 'tags-storage', storage: createFileStorage() }
+    {
+      name: 'tags-storage',
+      storage: createFileStorage(),
+      onRehydrateStorage: () => (state) => { state?.setHasHydrated(true) },
+      partialize: (state) => {
+        const { _hasHydrated, setHasHydrated, ...rest } = state
+        return rest
+      },
+    }
   )
 )
 

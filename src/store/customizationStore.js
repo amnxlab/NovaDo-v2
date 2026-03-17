@@ -11,6 +11,8 @@ const useCustomizationStore = create(
       fontSize: 'medium',
       backgroundPattern: 'none',
       highContrast: false,
+      _hasHydrated: false,
+      setHasHydrated: (value) => set({ _hasHydrated: value }),
       toggleColorScheme: () => {
         set((state) => ({ colorScheme: state.colorScheme === 'dark' ? 'light' : 'dark' }))
       },
@@ -27,7 +29,15 @@ const useCustomizationStore = create(
         set((state) => ({ highContrast: !state.highContrast }))
       },
     }),
-    { name: 'customization-storage', storage: createFileStorage() }
+    {
+      name: 'customization-storage',
+      storage: createFileStorage(),
+      onRehydrateStorage: () => (state) => { state?.setHasHydrated(true) },
+      partialize: (state) => {
+        const { _hasHydrated, setHasHydrated, ...rest } = state
+        return rest
+      },
+    }
   )
 )
 

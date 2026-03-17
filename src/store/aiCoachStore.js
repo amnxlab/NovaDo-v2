@@ -181,6 +181,8 @@ const useAICoachStore = create(
       recommendations: [],
       autopilotEnabled: false,
       autopilotTaskId: null,
+      _hasHydrated: false,
+      setHasHydrated: (value) => set({ _hasHydrated: value }),
 
       addSuggestion: (text, type = 'nudge') => {
         set((state) => ({
@@ -205,7 +207,15 @@ const useAICoachStore = create(
       clearSuggestions: () => set({ suggestions: [] }),
       clearRecommendations: () => set({ recommendations: [] }),
     }),
-    { name: 'ai-coach-storage', storage: createFileStorage() }
+    {
+      name: 'ai-coach-storage',
+      storage: createFileStorage(),
+      onRehydrateStorage: () => (state) => { state?.setHasHydrated(true) },
+      partialize: (state) => {
+        const { _hasHydrated, setHasHydrated, ...rest } = state
+        return rest
+      },
+    }
   )
 )
 

@@ -11,6 +11,7 @@ const DATA_DIR = join(__dirname, 'data')
 const USERS_FILE = join(DATA_DIR, '_users.json')
 const app = express()
 const PORT = 3001
+const STORAGE_META_KEY = '__storageMeta'
 
 // IMPORTANT: Set a strong secret in production via environment variable
 const JWT_SECRET = process.env.JWT_SECRET || 'novado-dev-secret-change-in-production'
@@ -160,6 +161,12 @@ function getUserFilePath(userId, storeName) {
   return join(userDir, `${storeName}.json`)
 }
 
+function getServerRevision(payload) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return 0
+  const revision = payload?.[STORAGE_META_KEY]?.serverRevision
+  return Number.isInteger(revision) ? revision : 0
+}
+
 // ─── Store endpoints (all auth-protected) ────────────────────────────────────
 
 // GET /api/store/:name — read store data for authenticated user
@@ -172,7 +179,10 @@ app.get('/api/store/:name', requireAuth, (req, res) => {
 
   try {
     const raw = readFileSync(filePath, 'utf-8')
-    res.json(JSON.parse(raw))
+    const parsed = JSON.parse(raw)
+    const revision = getServerRevision(parsed)
+    res.setHeader('X-Server-Revision', String(revision))
+    res.json(parsed)
   } catch {
     res.json(null)
   }
@@ -191,8 +201,44 @@ app.put('/api/store/:name', requireAuth, (req, res) => {
 
   const filePath = getUserFilePath(req.userId, name)
   try {
-    writeFileSync(filePath, JSON.stringify(req.body, null, 2), 'utf-8')
-    res.json({ ok: true })
+    let currentValue = null
+    if (existsSync(filePath)) {
+      try {
+        currentValue = JSON.parse(readFileSync(filePath, 'utf-8'))
+      } catch {
+        currentValue = null
+      }
+    }
+
+    const currentRevision = getServerRevision(currentValue)
+    const expectedRaw = req.headers['x-expected-revision']
+    const expectedRevision = Number.isInteger(Number(expectedRaw)) ? Number(expectedRaw) : null
+    const forceWrite = req.headers['x-force-write'] === '1'
+
+    if (!forceWrite && expectedRevision !== null && expectedRevision !== currentRevision) {
+      return res.status(409).json({
+        error: 'Revision conflict',
+        conflict: true,
+        store: name,
+        expectedRevision,
+        currentRevision,
+        serverValue: currentValue,
+      })
+    }
+
+    const nextRevision = currentRevision + 1
+    const incomingMeta = req.body?.[STORAGE_META_KEY]
+    const nextValue = {
+      ...req.body,
+      [STORAGE_META_KEY]: {
+        ...(incomingMeta && typeof incomingMeta === 'object' ? incomingMeta : {}),
+        serverRevision: nextRevision,
+        serverUpdatedAt: new Date().toISOString(),
+      },
+    }
+
+    writeFileSync(filePath, JSON.stringify(nextValue, null, 2), 'utf-8')
+    res.json({ ok: true, serverRevision: nextRevision })
   } catch {
     res.status(500).json({ error: 'Failed to write data' })
   }

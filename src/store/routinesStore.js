@@ -63,6 +63,8 @@ const useRoutinesStore = create(
   persist(
     (set, get) => ({
       routines: [],
+      _hasHydrated: false,
+      setHasHydrated: (value) => set({ _hasHydrated: value }),
 
       addRoutineFromPreset: (presetKey) => {
         const preset = ROUTINE_PRESETS[presetKey]
@@ -135,7 +137,15 @@ const useRoutinesStore = create(
         }
       },
     }),
-    { name: 'routines-storage', storage: createFileStorage() }
+    {
+      name: 'routines-storage',
+      storage: createFileStorage(),
+      onRehydrateStorage: () => (state) => { state?.setHasHydrated(true) },
+      partialize: (state) => {
+        const { _hasHydrated, setHasHydrated, ...rest } = state
+        return rest
+      },
+    }
   )
 )
 

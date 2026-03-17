@@ -26,7 +26,9 @@ const router = createBrowserRouter([
 ])
 
 export default function App() {
-  const { token } = useAuthStore()
+  const { token, _hasHydrated: authHydrated } = useAuthStore()
+
+  if (!authHydrated) return null
 
   if (!token) return <AuthPage />
 
