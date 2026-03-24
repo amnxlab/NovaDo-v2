@@ -1,9 +1,15 @@
-import { isAuthStoreHydrated } from '../store/authStore'
+import useAuthStore, { isAuthStoreHydrated } from '../store/authStore'
 
 const API_BASE = '/api/store'
 const STORAGE_META_KEY = '__storageMeta'
 const OFFLINE_QUEUE_PREFIX = '__novado_offline_snapshot__'
 const CONFLICT_SNAPSHOT_PREFIX = '__novado_conflict_snapshot__'
+
+// Returns the current user ID from the auth store, or a fallback sentinel.
+// All localStorage keys are scoped per-user so that logging in as a different
+// account (or on a device where a previous session left offline snapshots)
+// never causes stale data from one user to be flushed into another user's account.
+const getCurrentUserId = () => useAuthStore.getState().user?.id ?? '__anonymous__'
 
 // All requests carry the auth cookie automatically — no auth headers needed.
 const FETCH_DEFAULTS = { credentials: 'include' }
@@ -25,8 +31,12 @@ const waitForAuthReady = async (timeoutMs = 2000) => {
   }
 }
 
-const queueKey = (name) => `${OFFLINE_QUEUE_PREFIX}:${name}`
-const conflictKey = (name) => `${CONFLICT_SNAPSHOT_PREFIX}:${name}`
+const queueKey = (name) => `${OFFLINE_QUEUE_PREFIX}:${getCurrentUserId()}:${name}`
+const conflictKey = (name) => `${CONFLICT_SNAPSHOT_PREFIX}:${getCurrentUserId()}:${name}`
+
+// User-scoped localStorage prefix helpers — used for bulk cleanup
+const userQueuePrefix = (userId) => `${OFFLINE_QUEUE_PREFIX}:${userId}:`
+const userConflictPrefix = (userId) => `${CONFLICT_SNAPSHOT_PREFIX}:${userId}:`
 const latestServerRevisions = new Map()
 const syncStateByStore = new Map()
 const syncSubscribers = new Set()
@@ -238,8 +248,12 @@ export function createFileStorage() {
         setSyncState(name, 'offline', 'Server unreachable')
       }
 
-      // Flush any queued offline writes now that server is reachable
+      // Flush any queued offline writes now that server is reachable.
+      // IMPORTANT: rememberRevision must be called BEFORE flushOfflineSnapshot so that
+      // writeHeaders() knows the current server revision and sends X-Expected-Revision.
+      // Without this, the flush would send no revision header and bypass conflict detection.
       if (serverReadSucceeded) {
+        rememberRevision(name, serverValue)
         const flushed = await flushOfflineSnapshot(name)
         if (flushed) {
           // Re-read fresh server state after flushing queue
@@ -346,10 +360,11 @@ function debouncedSave(name, serialized) {
 export function listPersistenceConflicts() {
   try {
     const conflicts = []
+    const prefix = `${CONFLICT_SNAPSHOT_PREFIX}:${getCurrentUserId()}:`
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i)
-      if (!key?.startsWith(`${CONFLICT_SNAPSHOT_PREFIX}:`)) continue
-      const name = key.slice(`${CONFLICT_SNAPSHOT_PREFIX}:`.length)
+      if (!key?.startsWith(prefix)) continue
+      const name = key.slice(prefix.length)
       const payload = readConflictSnapshot(name)
       conflicts.push({ name, payload })
     }
@@ -395,4 +410,49 @@ export async function resolvePersistenceConflict(name, strategy = 'server') {
     setSyncState(name, 'offline', 'Network error while resolving conflict')
     return { ok: false, error: 'Network error while resolving conflict' }
   }
+}
+
+// ── Cross-session cleanup utilities ──────────────────────────────────────────
+
+/**
+ * clearAllOfflineSnapshots — removes all offline queue and conflict snapshot
+ * entries in localStorage belonging to a specific userId.
+ *
+ * Call this on logout (before page reload) so stale queued writes from the
+ * outgoing session are never flushed by a future login — whether the same
+ * user or a different one.
+ */
+export function clearAllOfflineSnapshots(userId) {
+  if (!userId) return
+  try {
+    const qPrefix = userQueuePrefix(userId)
+    const cPrefix = userConflictPrefix(userId)
+    const keysToRemove = []
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+      if (key?.startsWith(qPrefix) || key?.startsWith(cPrefix)) {
+        keysToRemove.push(key)
+      }
+    }
+    keysToRemove.forEach((k) => localStorage.removeItem(k))
+  } catch { /* ignore */ }
+}
+
+/**
+ * resetFileStorage — wipes all in-memory state for the storage module.
+ *
+ * Call this on logout before the page reload to ensure the next session
+ * (whether for the same or a different user) starts with a clean slate:
+ * no stale revisions, no leftover sync state, and all pending debounce
+ * timers cancelled so in-flight saves don't fire after the session ends.
+ */
+export function resetFileStorage() {
+  serverLoadAttempted.clear()
+  latestServerRevisions.clear()
+  syncStateByStore.clear()
+  syncSubscribers.clear()
+  storageClientId = `client_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
+  // Cancel all pending debounced writes
+  pendingWrites.forEach((timer) => clearTimeout(timer))
+  pendingWrites.clear()
 }

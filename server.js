@@ -254,6 +254,20 @@ app.put('/api/store/:name', requireAuth, (req, res) => {
     const expectedRevision = Number.isInteger(Number(expectedRaw)) ? Number(expectedRaw) : null
     const forceWrite = req.headers['x-force-write'] === '1'
 
+    // SAFETY: If data already exists on the server (currentRevision > 0), the client
+    // MUST send X-Expected-Revision. A missing header means the client has no knowledge
+    // of the current server state — treat it as a conflict rather than a free overwrite.
+    if (!forceWrite && currentRevision > 0 && expectedRevision === null) {
+      return res.status(409).json({
+        error: 'Revision required',
+        conflict: true,
+        store: name,
+        expectedRevision: null,
+        currentRevision,
+        serverValue: currentValue,
+      })
+    }
+
     if (!forceWrite && expectedRevision !== null && expectedRevision !== currentRevision) {
       return res.status(409).json({
         error: 'Revision conflict',
@@ -263,6 +277,30 @@ app.put('/api/store/:name', requireAuth, (req, res) => {
         currentRevision,
         serverValue: currentValue,
       })
+    }
+
+    // SAFETY: Reject empty-state writes that would overwrite non-empty server data.
+    // This is a last-resort guard against client bugs or stale cached data replacing real content.
+    if (!forceWrite && currentValue !== null) {
+      const incomingState = req.body?.state
+      const existingState = currentValue?.state
+      if (incomingState && existingState && typeof incomingState === 'object' && typeof existingState === 'object') {
+        const existingArrayFields = Object.keys(existingState).filter((k) => Array.isArray(existingState[k]) && existingState[k].length > 0)
+        if (existingArrayFields.length > 0) {
+          const allIncomingArraysEmpty = existingArrayFields.every(
+            (k) => !Array.isArray(incomingState[k]) || incomingState[k].length === 0
+          )
+          if (allIncomingArraysEmpty) {
+            return res.status(409).json({
+              error: 'Empty-state write rejected — server has existing data',
+              conflict: true,
+              store: name,
+              currentRevision,
+              serverValue: currentValue,
+            })
+          }
+        }
+      }
     }
 
     const nextRevision = currentRevision + 1

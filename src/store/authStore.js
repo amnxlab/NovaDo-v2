@@ -21,6 +21,17 @@ const useAuthStore = create(
         } catch {
           // ignore network errors — cookie will expire on its own
         }
+        // Purge this user's queued offline writes and conflict snapshots from
+        // localStorage so they are never accidentally flushed by a future login.
+        // Reset all in-memory storage state (revisions, pending timers, etc.)
+        // so the next session starts completely clean.
+        // Lazy import to avoid circular dependency (fileStorage imports authStore).
+        const userId = useAuthStore.getState().user?.id
+        try {
+          const { clearAllOfflineSnapshots, resetFileStorage } = await import('../utils/fileStorage')
+          if (userId) clearAllOfflineSnapshots(userId)
+          resetFileStorage()
+        } catch { /* ignore — page reload will clear in-memory state anyway */ }
         set({ user: null })
         // Reload to flush all in-memory Zustand state between sessions
         window.location.replace('/')
